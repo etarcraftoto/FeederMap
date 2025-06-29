@@ -1,0 +1,5626 @@
+	<!DOCTYPE html>
+	<html lang="zh-TW">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>饋線圖地圖系統</title>
+		<!-- 新增：proj4js 用於座標轉換 -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.7.5/proj4.js"></script>
+		<!-- 新增：地圖旋轉控制插件 -->
+		<script src="https://cdn.jsdelivr.net/npm/leaflet-rotatedmarker@0.2.0/leaflet.rotatedMarker.js"></script>
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-compass@1.0.0/dist/leaflet-compass.css">
+		<script src="https://cdn.jsdelivr.net/npm/leaflet-compass@1.0.0/dist/leaflet-compass.js"></script>
+		<!-- Leaflet CSS -->
+		<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+			  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+			  crossorigin=""/>
+		
+		<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f5f5f5;
+}
+
+.header {
+    background: linear-gradient(135deg, #2c3e50, #3498db);
+    color: white;
+    padding: 15px 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.header h1 {
+    font-size: 24px;
+    margin-bottom: 5px;
+}
+
+.header p {
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+/* 🔧 修正：電腦版固定布局 + 手機版響應式 */
+.container {
+    display: flex;
+    height: calc(100vh - 80px);
+    position: relative;
+}
+
+.sidebar {
+    width: 320px;
+    background: white;
+    border-right: 1px solid #ddd;
+    overflow-y: auto;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    z-index: 100;
+    position: relative;
+}
+
+.map-container {
+    flex: 1;
+    position: relative;
+    margin-left: 0;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+/* 🆕 手機版導航 - 預設隱藏 */
+.mobile-nav {
+    display: none;
+    background: #2c3e50;
+    justify-content: space-around;
+    padding: 10px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.nav-tab {
+    flex: 1;
+    padding: 12px;
+    background: transparent;
+    color: #bdc3c7;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.nav-tab.active {
+    color: #3498db;
+    background: rgba(52, 152, 219, 0.1);
+    border-radius: 8px;
+}
+
+.file-upload-section {
+    margin-bottom: 25px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 2px dashed #dee2e6;
+    transition: all 0.3s ease;
+}
+
+.file-upload-section:hover {
+    border-color: #3498db;
+    background: #e3f2fd;
+}
+
+.file-upload-section h3 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.file-input-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+#fileInput {
+    display: none;
+}
+
+.file-input-button {
+    display: block;
+    width: 100%;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.file-input-button:hover {
+    background: linear-gradient(135deg, #2980b9, #1f5f8b);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.file-info {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #666;
+    text-align: center;
+}
+
+.layer-controls {
+    margin-bottom: 25px;
+}
+
+.layer-controls h3 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 16px;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 5px;
+}
+
+.layer-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    transition: background 0.3s ease;
+}
+
+.layer-item:hover {
+    background: #e9ecef;
+}
+
+.layer-item input[type="checkbox"] {
+    margin-right: 10px;
+    transform: scale(1.2);
+}
+
+.layer-item label {
+    flex: 1;
+    cursor: pointer;
+    font-size: 14px;
+    color: #495057;
+}
+
+.layer-count {
+    font-size: 12px;
+    color: #6c757d;
+    background: #e9ecef;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 8px;
+}
+
+.status-section {
+    margin-bottom: 20px;
+}
+
+.status-section h3 {
+    margin-bottom: 10px;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+#loadStatus {
+    padding: 10px;
+    background: #e8f5e8;
+    border: 1px solid #c3e6c3;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #155724;
+}
+
+.legend {
+    margin-top: 20px;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+
+.legend h4 {
+    margin-bottom: 10px;
+    color: #2c3e50;
+    font-size: 14px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 8px;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.2);
+}
+
+.legend-line {
+    width: 20px;
+    height: 3px;
+    margin-right: 8px;
+    border-radius: 2px;
+}
+
+.legend-line-dashed {
+    width: 20px;
+    height: 3px;
+    margin-right: 8px;
+    border-radius: 2px;
+    background-image: repeating-linear-gradient(
+        to right,
+        currentColor,
+        currentColor 4px,
+        transparent 4px,
+        transparent 8px
+    );
+}
+
+.loading {
+    display: none;
+    text-align: center;
+    padding: 20px;
+    color: #666;
+}
+
+.loading.show {
+    display: block;
+}
+
+.feeder-info {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #e3f2fd;
+    border-radius: 6px;
+    border-left: 4px solid #2196f3;
+}
+
+.feeder-info h4 {
+    margin-bottom: 8px;
+    color: #1976d2;
+}
+
+.feeder-info p {
+    margin: 4px 0;
+    font-size: 13px;
+    color: #424242;
+}
+
+/* 線段高亮控制按鈕樣式 */
+.highlight-controls {
+    margin-top: 15px;
+    padding: 10px;
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.reset-highlight-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.3s ease;
+}
+
+.reset-highlight-btn:hover {
+    background: #218838;
+}
+
+/* 設備圖標樣式 */
+.simple-device-icon {
+    background: transparent !important;
+    border: none !important;
+}
+
+.simple-device-icon div {
+    transition: none !important;
+}
+
+.leaflet-div-icon.arrow-icon {
+    background: transparent !important;
+    border: none !important;
+}
+
+.arrow-marker {
+    width: 0;
+    height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-bottom: 24px solid;
+    transform-origin: center bottom;
+}
+
+/* 星星標記樣式 */
+.opposite-star-icon {
+    background: transparent !important;
+    border: none !important;
+}
+
+.opposite-star-marker {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.star-icon {
+    font-size: 16px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
+.opposite-text {
+    background: rgba(255, 0, 0, 0.9);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: bold;
+    border: 1px solid #ff0000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* 全選控制區域樣式 */
+.select-all-container {
+    margin-bottom: 15px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+}
+
+.select-all-section h4 {
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.select-all-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.select-all-btn {
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    text-align: center;
+    font-weight: 500;
+}
+
+.select-all-btn:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+    transform: translateY(-1px);
+}
+
+.select-all-btn.equipment {
+    border-left: 3px solid #ff6b35;
+    color: #ff6b35;
+}
+
+.select-all-btn.lines {
+    border-left: 3px solid #4ecdc4;
+    color: #4ecdc4;
+}
+
+.select-all-btn.deselect {
+    grid-column: 1 / -1;
+    border-left: 3px solid #dc3545;
+    color: #dc3545;
+}
+
+.select-all-btn.active {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    border-color: #28a745;
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+}
+
+.select-all-btn.active:hover {
+    background: linear-gradient(135deg, #218838, #1e7e34);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(40, 167, 69, 0.4);
+}
+
+.select-all-btn.equipment.active,
+.select-all-btn.lines.active {
+    border-left: 3px solid #fff;
+}
+
+.divider {
+    border: none;
+    border-top: 1px solid #dee2e6;
+    margin: 10px 0;
+}
+
+/* 自訂彈出視窗樣式 */
+.custom-popup .leaflet-popup-content-wrapper {
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    border: none;
+}
+
+.custom-popup .leaflet-popup-content {
+    margin: 10px;
+    line-height: 1.4;
+}
+
+.custom-popup .leaflet-popup-tip {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* 饋線選擇區域樣式 */
+.feeder-selection-section {
+    margin-bottom: 25px;
+    padding: 20px;
+    background: #e8f5e8;
+    border-radius: 8px;
+    border: 2px solid #28a745;
+    transition: all 0.3s ease;
+}
+
+.feeder-selection-section h3 {
+    margin-bottom: 15px;
+    color: #155724;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.feeder-input-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.feeder-input {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #28a745;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+.feeder-input:focus {
+    border-color: #20c997;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+}
+
+.feeder-dropdown {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #28a745;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    background: white;
+    cursor: pointer;
+}
+
+.feeder-button-row {
+    margin-bottom: 12px;
+}
+
+.load-feeder-btn {
+    width: 100%;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+}
+
+.load-feeder-btn:hover {
+    background: linear-gradient(135deg, #218838, #1e7e34);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(40, 167, 69, 0.3);
+}
+
+.load-feeder-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+}
+
+.load-feeder-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.load-feeder-btn.loading {
+    background: #17a2b8;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.feeder-info-text {
+    font-size: 12px;
+    color: #155724;
+    text-align: center;
+    line-height: 1.4;
+}
+
+.feeder-selection-section.success {
+    border-color: #28a745;
+    background: linear-gradient(135deg, #d4edda, #c3e6cb);
+}
+
+.feeder-selection-section.loading {
+    border-color: #17a2b8;
+    background: linear-gradient(135deg, #d1ecf1, #bee5eb);
+}
+
+.feeder-selection-section.error {
+    border-color: #dc3545;
+    background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+}
+
+/* 定位按鈕樣式 */
+.location-controls {
+    position: absolute;
+    top: 60px;
+    right: 10px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.location-btn {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: background 0.3s;
+}
+
+.location-btn:hover {
+    background: #45a049;
+}
+
+.location-btn.active {
+    background: #2196F3;
+}
+
+/* 圖號座標輸入區域 */
+.coordinate-input-section {
+    margin-bottom: 25px;
+    padding: 20px;
+    background: #fff3cd;
+    border-radius: 8px;
+    border: 2px solid #ffc107;
+}
+
+.coordinate-input-section h3 {
+    margin-bottom: 15px;
+    color: #856404;
+    font-size: 16px;
+}
+
+.coordinate-input {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #ffc107;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.coordinate-btn {
+    width: 100%;
+    padding: 10px;
+    background: #ffc107;
+    color: #212529;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.coordinate-btn:hover {
+    background: #e0a800;
+}
+
+/* 地圖旋轉控制樣式 */
+.rotation-controls {
+    position: absolute;
+    bottom: 120px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 160px;
+    z-index: 1000;
+}
+
+.compass-display {
+    font-size: 11px;
+    text-align: center;
+    color: #666;
+    padding: 4px 0;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.rotation-btn {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.rotation-btn:hover {
+    background: #f8f9fa;
+    border-color: #007bff;
+    transform: translateY(-1px);
+}
+
+.rotation-btn.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+/* 圖層切換增強樣式 */
+.layer-switcher-compact {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1001;
+}
+
+.layer-toggle-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.layer-toggle-btn:hover {
+    background: white;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.layer-menu {
+    position: absolute;
+    top: 45px;
+    right: 0;
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    max-width: 280px;
+    max-height: 400px;
+    overflow-y: auto;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.layer-group {
+    margin-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.layer-group:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.layer-group h5 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    font-weight: bold;
+    color: #333;
+}
+
+.layer-option {
+    display: flex;
+    align-items: center;
+    margin: 5px 0;
+    font-size: 12px;
+}
+
+.layer-option input {
+    margin-right: 8px;
+}
+
+.layer-option label {
+    cursor: pointer;
+    flex: 1;
+}
+
+.layer-opacity-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.opacity-slider {
+    flex: 1;
+    height: 4px;
+}
+
+/* 全螢幕控制 */
+.fullscreen-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10000;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.fullscreen-btn:hover {
+    background: #45a049;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.fullscreen-mode .fullscreen-btn {
+    background: #ff5722;
+    animation: pulse 2s infinite;
+}
+
+.fullscreen-mode .fullscreen-btn:hover {
+    background: #e64a19;
+}
+
+.fullscreen-mode .header {
+    display: none;
+}
+
+.fullscreen-mode .container {
+    height: 100vh;
+}
+
+.fullscreen-mode .sidebar {
+    position: absolute;
+    left: -320px;
+    transition: left 0.3s ease;
+}
+
+.fullscreen-mode .map-container {
+    width: 100%;
+    height: 100vh;
+}
+
+/* 測量工具樣式 */
+.measure-controls {
+    position: absolute;
+    top: 60px;
+    left: 10px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.measure-btn {
+    background: #FF9800;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.measure-btn:hover {
+    background: #F57C00;
+}
+
+.measure-btn.active {
+    background: #E65100;
+}
+
+/* 🔧 修正：手機版專用樣式 */
+@media (max-width: 768px) {
+    .mobile-nav {
+        display: flex !important;
+        background: #2c3e50;
+        justify-content: space-around;
+        padding: 10px 0;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    
+    .nav-tab {
+        flex: 1;
+        padding: 12px;
+        background: transparent;
+        color: #bdc3c7;
+        border: none;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .nav-tab.active {
+        color: #3498db;
+        background: rgba(52, 152, 219, 0.1);
+        border-radius: 8px;
+    }
+    
+    .header {
+        display: none;
+    }
+    
+    .container {
+        height: calc(100vh - 60px);
+        margin-top: 60px;
+        flex-direction: column;
+    }
+    
+    .sidebar {
+        width: 100%;
+        height: 100vh;
+        position: fixed;
+        top: 60px;
+        left: 0;
+        z-index: 999;
+        display: none;
+        border-right: none;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .map-container {
+        width: 100%;
+        height: calc(100vh - 60px);
+        position: fixed;
+        top: 60px;
+        left: 0;
+        margin-left: 0;
+    }
+    
+    #map {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+    }
+    
+    /* 觸控優化 */
+    .control-btn,
+    .measure-btn,
+    .load-feeder-btn {
+        min-height: 44px;
+        min-width: 44px;
+        font-size: 16px;
+        padding: 12px 16px;
+    }
+    
+    .measure-controls {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        top: auto;
+        left: auto;
+        flex-direction: row;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 10px;
+        border-radius: 25px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .control-btn:active,
+    .measure-btn:active {
+        transform: scale(0.95);
+        transition: transform 0.1s;
+    }
+    
+    .feeder-input,
+    .feeder-dropdown {
+        width: 100%;
+    }
+    
+    .load-feeder-btn {
+        font-size: 14px;
+        padding: 10px 16px;
+    }
+}
+
+/* 🔧 修正：桌面版確保正常顯示 */
+@media (min-width: 769px) {
+    .mobile-nav {
+        display: none !important;
+    }
+    
+    .header {
+        display: block;
+    }
+    
+    .container {
+        margin-top: 0;
+        height: calc(100vh - 80px);
+    }
+    
+    .sidebar {
+        position: relative;
+        display: block;
+    }
+    
+    .map-container {
+        position: relative;
+    }
+}
+		</style>
+	</head>
+	<body>
+	    <!-- 🆕 在這裡加入手機版導航 - 放在最頂部 -->
+    <div class="mobile-nav" style="display: none;">
+        <button class="nav-tab active" data-tab="map">🗺️ 地圖</button>
+        <button class="nav-tab" data-tab="controls">⚙️ 控制</button>
+        <button class="nav-tab" data-tab="info">ℹ️ 資訊</button>
+    </div>
+		<div class="header">
+			<h1>🗺️ 饋線圖地圖系統</h1>
+			<p>載入配電系統 JSON 檔案並自訂圖層顯示（支援點與線段高亮）</p>
+		</div>
+		
+		<div class="container">
+			<div class="sidebar">
+			<!-- 🆕 饋線選擇區域 -->
+			<div class="feeder-selection-section">
+				<h3>🌐 從雲端載入饋線資料</h3>
+				
+				<!-- 🆕 分成兩行顯示 -->
+				<div class="feeder-input-row">
+					<input type="text" 
+						   id="feederInput" 
+						   class="feeder-input" 
+						   placeholder="輸入饋線名稱(如: 6A22)"
+						   maxlength="4">
+					<select id="feederDropdown" class="feeder-dropdown">
+						<option value="">選擇饋線</option>
+					</select>
+				</div>
+				
+				<!-- 🆕 按鈕獨立一行 -->
+				<div class="feeder-button-row">
+					<button class="load-feeder-btn" onclick="loadFeederFromCloud()">
+						🌐 從雲端載入饋線資料
+					</button>
+				</div>
+				
+				<div class="feeder-info-text">
+					<!-- 🆕 快取控制區域 -->
+						<div class="cache-controls" style="margin-top: 10px; display: flex; gap: 8px;">
+							<button onclick="preloadPopularFeeders()" 
+									style="flex: 1; padding: 6px; font-size: 11px; background: #17a2b8; 
+										   color: white; border: none; border-radius: 4px; cursor: pointer;">
+								🔥 預載熱門
+							</button>
+							<button onclick="showCacheStats()" 
+									style="flex: 1; padding: 6px; font-size: 11px; background: #6c757d; 
+										   color: white; border: none; border-radius: 4px; cursor: pointer;">
+								📊 快取狀態
+							</button>
+							<button onclick="feederCache.clear(); showToast('快取已清除', 'info')" 
+									style="flex: 1; padding: 6px; font-size: 11px; background: #dc3545; 
+										   color: white; border: none; border-radius: 4px; cursor: pointer;">
+								🗑️ 清除快取
+							</button>
+						</div>
+				</div>
+			</div>
+			<!-- 新增：圖號座標輸入區域 -->
+			<div class="coordinate-input-section">
+				<h3>🗺️ 圖號座標查詢</h3>
+				<input type="text" 
+					   id="coordinateInput" 
+					   class="coordinate-input" 
+					   placeholder="輸入圖號座標 (如: Q1520CB20)"
+					   maxlength="15">
+				<button class="coordinate-btn" onclick="searchByCoordinate()">
+					🔍 座標定位
+				</button>
+				<div style="font-size: 12px; color: #856404; margin-top: 8px; text-align: center;">
+					支援台電圖號座標格式
+				</div>
+			</div>
+				<!-- 檔案上傳區域 -->
+				<div class="file-upload-section">
+					<h3>📁 載入配電系統檔案</h3>
+					<div class="file-input-wrapper">
+						<input type="file" id="fileInput" accept=".json" />
+						<button class="file-input-button" onclick="document.getElementById('fileInput').click()">
+							📂 選擇 JSON 檔案
+						</button>
+					</div>
+					<div class="file-info">
+						支援台電配電系統 GeoNode 格式（點與線段）
+					</div>
+				</div>
+				
+				<!-- 饋線資訊 -->
+				<div id="feederInfo" class="feeder-info" style="display: none;">
+					<h4>📊 饋線資訊</h4>
+					<p id="feederDetails">等待載入...</p>
+				</div>
+				
+				<!-- 載入狀態 -->
+				<div class="status-section">
+					<h3>📊 載入狀態</h3>
+					<div id="loadStatus">請選擇 JSON 檔案開始載入...</div>
+				</div>
+				
+				<!-- 線段高亮控制 -->
+				<div class="highlight-controls" style="display: none;" id="highlightControls">
+					<h4 style="margin: 0 0 8px 0; font-size: 14px; color: #856404;">🎯 線段高亮</h4>
+					<p style="margin: 0 0 8px 0; font-size: 12px; color: #856404;">點選地圖上的線段進行高亮顯示</p>
+					<button class="reset-highlight-btn" onclick="resetLineHighlight()">
+						🔄 重置高亮
+					</button>
+				</div>
+				
+				<!-- 圖層控制 -->
+				<div class="layer-controls">
+					<h3>🎛️ 圖層控制</h3>
+					<div id="layerControlsContainer">
+						<p style="color: #666; font-size: 14px; text-align: center; padding: 20px;">
+							載入檔案後將顯示圖層控制選項
+						</p>
+					</div>
+				</div>
+				<!-- 新增：快捷鍵說明 - 加在這裡 -->
+
+				<!-- 載入中指示器 -->
+				<div class="loading" id="loadingIndicator">
+					<div>⏳ 正在處理檔案...</div>
+				</div>
+				
+				<!-- 圖例 -->
+				<div class="legend">
+					<h4 style="margin: 10px 0 5px 0;">🔌 線路圖例</h4>
+					<div class="legend-item">
+						<div class="legend-line" style="background: #dc3545; color: #dc3545;"></div>
+						<span>22.8kV 主幹線 (架空)</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-line-dashed" style="color: #dc3545;"></div>
+						<span>22.8kV 主幹線 (地下)</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-line" style="background: #007bff; color: #007bff;"></div>
+						<span>22.8kV 分歧線 (架空)</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-line-dashed" style="color: #007bff;"></div>
+						<span>22.8kV 分歧線 (地下)</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-line" style="background: #fd7e14; color: #fd7e14;"></div>
+						<span>11.4kV 主幹線 (架空)</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-line-dashed" style="color: #fd7e14;"></div>
+						<span>11.4kV 主幹線 (地下)</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-line" style="background: #28a745; color: #28a745;"></div>
+						<span>11.4kV 分歧線 (架空)</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-line-dashed" style="color: #28a745;"></div>
+						<span>11.4kV 分歧線 (地下)</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-line" style="background: #6c757d; color: #6c757d;"></div>
+						<span>其他線路 (架空)</span>
+					</div>
+					<div class="legend-item">
+						<div class="legend-line-dashed" style="color: #6c757d;"></div>
+						<span>其他線路 (地下)</span>
+					</div>
+					<hr style="margin: 8px 0;">
+					<div style="font-size: 11px; color: #666; text-align: center;">
+						💡 點選線段進行高亮顯示
+					</div>
+				</div>
+			</div>
+			
+			<div class="map-container">
+				<div id="map"></div>
+				<!-- 🆕 在這裡加入：可收合圖層切換器 -->
+				<div class="layer-switcher-compact" id="layerSwitcherCompact">
+					<button class="layer-toggle-btn" onclick="toggleLayerMenu()">
+						🗺️ 圖層
+					</button>
+					
+					<div class="layer-menu" id="layerMenu" style="display: none;">
+						<div class="layer-group">
+							<h5>🗺️ 基礎圖層</h5>
+							<div class="layer-option">
+								<input type="radio" id="googleStreets" name="baseLayer" value="googleStreets" checked>
+								<label for="googleStreets">Google 街景圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="radio" id="googleSatellite" name="baseLayer" value="googleSatellite">
+								<label for="googleSatellite">Google 衛星影像</label>
+							</div>
+							<div class="layer-option">
+								<input type="radio" id="googleHybrid" name="baseLayer" value="googleHybrid">
+								<label for="googleHybrid">Google 混合圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="radio" id="openStreetMap" name="baseLayer" value="openStreetMap">
+								<label for="openStreetMap">OpenStreetMap</label>
+							</div>
+							<div class="layer-option">
+								<input type="radio" id="esriWorldImagery" name="baseLayer" value="esriWorldImagery">
+								<label for="esriWorldImagery">Esri 衛星圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="radio" id="nlscMap" name="baseLayer" value="nlscMap">
+								<label for="nlscMap">國土測繪電子地圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="radio" id="nlscContour" name="baseLayer" value="nlscContour">
+								<label for="nlscContour">國土測繪地圖(含等高線)</label>
+							</div>
+							<div class="layer-option">
+								<input type="radio" id="nlscPhoto" name="baseLayer" value="nlscPhoto">
+								<label for="nlscPhoto">國土測繪正射影像</label>
+							</div>
+						</div>
+						
+						<div class="layer-group">
+							<h5>🏛️ 政府圖層</h5>
+							<div class="layer-option">
+								<input type="checkbox" id="roadNetworkLayer" onchange="toggleOverlayLayer('roadNetwork')">
+								<label for="roadNetworkLayer">路網圖層</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="railwayLayer" onchange="toggleOverlayLayer('railway')">
+								<label for="railwayLayer">鐵路圖層</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="publicLandLayer" onchange="toggleOverlayLayer('landmark')">
+								<label for="publicLandLayer">公有土地圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="adminBoundaryLayer" onchange="toggleOverlayLayer('cadastre')">
+								<label for="adminBoundaryLayer">行政區界圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="landParcelLayer" onchange="toggleOverlayLayer('section')">
+								<label for="landParcelLayer">段籍圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="villageLayer" onchange="toggleOverlayLayer('village')">
+								<label for="villageLayer">村里界圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="roadMilestoneLayer" onchange="toggleOverlayLayer('wayMeter')">
+								<label for="roadMilestoneLayer">公路里程標誌</label>
+							</div>
+						</div>
+						
+						<div class="layer-group">
+							<h5>🏔️ 高雄市專用圖層</h5>
+							<div class="layer-option">
+								<input type="checkbox" id="kaohsiungSlopeLayer" onchange="toggleOverlayLayer('kaohsiungSlope')">
+								<label for="kaohsiungSlopeLayer">高雄山坡地範圍</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="industrialZoneLayer" onchange="toggleOverlayLayer('industrialZone')">
+								<label for="industrialZoneLayer">工業區範圍</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="industrialLandLayer" onchange="toggleOverlayLayer('industrialLand')">
+								<label for="industrialLandLayer">工業區地籍圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="industrialUserLayer" onchange="toggleOverlayLayer('industrialUser')">
+								<label for="industrialUserLayer">工業區用戶名</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="urbanPlanLayer" onchange="toggleOverlayLayer('urbanPlan')">
+								<label for="urbanPlanLayer">高雄市都市計畫圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="urbanPlanBoundaryLayer" onchange="toggleOverlayLayer('urbanPlanBoundary')">
+								<label for="urbanPlanBoundaryLayer">高雄市都市計畫範圍圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="nationalLandPlanLayer" onchange="toggleOverlayLayer('trafficNetwork')">
+								<label for="nationalLandPlanLayer">國土計畫圖</label>
+							</div>
+						</div>
+						
+						<div class="layer-group">
+							<h5>🎛️ 圖層控制</h5>
+							<div class="layer-opacity-control">
+								<span>透明度:</span>
+								<input type="range" class="opacity-slider" id="layerOpacity" 
+									   min="0" max="100" value="100" onchange="adjustLayerOpacity(this.value)">
+								<span id="opacityValue">100%</span>
+							</div>
+						</div>
+					</div>
+				</div>
+				
+				<!-- 原有的控制按鈕繼續保留在下面 -->
+				<button class="fullscreen-btn" onclick="toggleFullscreen()">
+					🔲 全螢幕
+				</button>
+				
+				<div class="location-controls">
+					<button id="locateBtn" class="location-btn" onclick="toggleContinuousLocation()">
+						📍 定位
+					</button>
+				</div>
+				
+				
+				<!-- 新增：全螢幕按鈕 -->
+				<button class="fullscreen-btn" onclick="toggleFullscreen()">
+					🔲 全螢幕
+				</button>
+				
+				
+				<!-- 修改：定位控制按鈕 -->
+				<div class="location-controls">
+					<button id="locateBtn" class="location-btn" onclick="toggleContinuousLocation()">
+						📍 定位
+					</button>
+				</div>
+				
+				<!-- 簡化：旋轉控制 - 只保留跟隨方向 -->
+				<div class="rotation-controls" id="rotationControls">
+					<div class="compass-display" id="compassDisplay">方位: 0°</div>
+					<button class="rotation-btn" onclick="resetMapRotation()">🧭 重置方向</button>
+					<button class="rotation-btn" id="followHeadingBtn" onclick="toggleFollowHeading()">
+						📱 跟隨裝置方向
+					</button>
+				</div>
+				
+				<!-- 新增：測量工具 -->
+				<div class="measure-controls">
+					<button class="measure-btn" id="measureDistanceBtn" onclick="toggleMeasureDistance()">
+						📏 測距
+					</button>
+					<button class="measure-btn" onclick="clearMeasurements()">
+						🗑️ 清除
+					</button>
+				</div>
+				
+				
+			</div>
+		</div>
+		
+		<!-- Leaflet JavaScript -->
+		<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+				integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
+				crossorigin=""></script>
+		
+		<script>
+			// 全域變數
+			let map;
+			let allDevicesData = [];
+			let allLinesData = [];
+			let layerGroups = {};
+			let layerCounts = {};
+			let currentFeederInfo = null;
+			let selectedLine = null; // 儲存當前選中的線段
+			// 🔧 新增：箭頭管理
+			let allArrowMarkers = []; // 儲存所有箭頭標記
+			let arrowLayerGroup = null; // 箭頭圖層群組
+			// 地圖初始化
+			// 地圖初始化 - 修改版
+			// 🌟 新增：星星管理
+			let oppositeStarMarkers = []; // 儲存所有星星標記
+			let oppositeLayerGroup = null; // 星星圖層群組
+			
+			// 🆕 全域變數儲存饋線資料
+			let feederDataMap = {};
+			let feederList = [];
+			// 🆕 饋線清單 - 根據您提供的檔案名稱
+			// 🆕 超高速載入相關全域變數
+			let feederCache = null;
+			let fastJsonLoader = null;
+			let localStorageManager = null;
+			// 新增：定位功能相關變數
+			let isContinuousLocationEnabled = false;
+			let userLocationMarker;
+			let watchId;
+
+			// 🆕 修改地圖初始化函數
+			// 🔧 修改：整合豐富圖層的地圖初始化函數
+			async function initMap() {
+				console.log('🗺️ 初始化地圖...');
+				
+				// 初始化超高速載入組件
+				feederCache = new FeederCache();
+				fastJsonLoader = new FastJsonLoader();
+				localStorageManager = new LocalStorageManager();
+				
+				// 建立地圖實例，預設中心點設在高雄
+				// 建立地圖實例，預設中心點設在高雄
+				map = L.map('map', {
+					center: [22.67, 120.34],
+					zoom: 12,
+					maxZoom: 22,
+					rotate: true,
+					rotateControl: {
+						closeOnZeroBearing: false
+					},
+					bearing: 0,
+					zoomControl: false  // 🔧 新增：移除預設的縮放控制按鈕
+				});
+								
+				// 定義座標系統
+				proj4.defs([
+					['EPSG:3826', '+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs'],
+					['EPSG:3828', '+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=aust_SA +towgs84=-752,-358,-179,-.0000011698,.0000018398,.0000009822,.00002329 +units=m +no_defs'],
+					['EPSG:4326', '+proj=longlat +datum=WGS84 +no_defs']
+				]);
+				
+				// 🆕 整合：建立多種地圖圖層（從第一支程式）
+				window.mapLayers = {
+					// Google 系列
+					googleStreets: L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+						maxZoom: 22,
+						subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+						attribution: '© Google Maps'
+					}),
+					
+					googleSatellite: L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+						maxZoom: 22,
+						subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+						attribution: '© Google Satellite'
+					}),
+					
+					googleHybrid: L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+						maxZoom: 22,
+						subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+						attribution: '© Google Hybrid'
+					}),
+					
+					// OpenStreetMap
+					openStreetMap: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+						attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+						maxZoom: 22
+					}),
+					
+					// Esri 衛星圖
+					esriWorldImagery: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+						attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+						maxZoom: 22
+					}),
+
+					// 🆕 國土測繪中心圖層
+					nlscMap: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+						maxZoom: 30,
+						attribution: '© 內政部國土測繪中心'
+					}),
+
+					nlscContour: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/EMAP2/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+						maxZoom: 30,
+						attribution: '© 內政部國土測繪中心'
+					}),
+
+					nlscPhoto: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/PHOTO2/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+						maxZoom: 30,
+						attribution: '© 內政部國土測繪中心'
+					})
+				};
+				
+				// 🆕 整合：疊加圖層（從第一支程式）
+	// 🔧 修正：使用與第一版相同的正確 WMTS 格式
+				window.overlayLayers = {
+					// ✅ 路網圖層 (已正常運作)
+					roadNetwork: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/ROAD/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+						maxZoom: 19,
+						attribution: '© 內政部國土測繪中心'
+					}),
+					
+					// ✅ 鐵路圖層 (已正常運作)
+					railway: L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
+						maxZoom: 30,
+						subdomains: ['a', 'b', 'c'],
+						attribution: 'Map data: &copy; OpenStreetMap contributors | Style: &copy; OpenRailwayMap'
+					}),
+					
+					// 🔧 修正：公有土地圖 - 使用正確的 WMTS URL
+					landmark: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/LAND_OPENDATA/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+						maxZoom: 30,
+						attribution: '© 內政部國土測繪中心'
+					}),
+					
+					// 🔧 修正：行政區界圖 - 使用正確的 WMTS URL
+					cadastre: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/TOWN/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+						maxZoom: 30,
+						attribution: '© 內政部國土測繪中心'
+					}),
+					
+					// 🔧 修正：段籍圖 - 使用正確的 WMTS URL
+					section: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/LANDSECT/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+						maxZoom: 30,
+						attribution: '© 內政部國土測繪中心'
+					}),
+					
+					// ✅ 村里界圖 (已正常運作)
+					village: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/Village/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+						maxZoom: 30,
+						attribution: '© 內政部國土測繪中心'
+					}),
+					
+					// 🔧 修正：公路里程標誌 - 使用正確的 WMTS URL
+					wayMeter:L.tileLayer('https://wmts.nlsc.gov.tw/wmts/WAYMETER/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+					  maxZoom: 30,
+					  attribution: 'Map data: &copy; OpenStreetMap contributors | Style: &copy; OpenRailwayMap'
+				    }),
+					
+					// ✅ 其他圖層保持不變
+					kaohsiungSlope: L.tileLayer.wms('https://swc.kcg.gov.tw/geoserver/KaoHill/ows', {
+						layers: 'HillRange',
+						format: 'image/png',
+						transparent: true,
+						version: '1.3.0',
+						attribution: '© 高雄市水土保持局'
+					}),
+					
+					industrialZone: L.tileLayer.wms('https://idbgis.ntpu.edu.tw/IDBMapService/GetMap.ashx', {
+						layers: 'A03',
+						format: 'image/png',
+						transparent: true,
+						version: '1.1.1',
+						attribution: '© NTPU IDB GIS'
+					}),
+					
+					industrialLand: L.tileLayer.wms('https://idbgis.ntpu.edu.tw/IDBMapService/GetMap.ashx', {
+						layers: 'C01',
+						format: 'image/png',
+						transparent: true,
+						version: '1.1.1',
+						attribution: '© NTPU IDB GIS'
+					}),
+					
+					industrialUser: L.tileLayer.wms('https://idbgis.ntpu.edu.tw/IDBMapService/GetMap.ashx', {
+						layers: 'B01',
+						format: 'image/png',
+						transparent: true,
+						version: '1.1.1',
+						attribution: '© NTPU IDB GIS'
+					}),
+					
+					urbanPlan: L.tileLayer.wms('https://urbanproxy.kcg.gov.tw/arcgis/services/UrbanAPI/KcgUrbanDataForUrbanAPI/MapServer/WmsServer', {
+						layers: '高雄市都市計畫圖',
+						format: 'image/png',
+						transparent: true,
+						version: '1.3.0',
+						attribution: '© 高雄市政府',
+						crs: L.CRS.EPSG4326,
+						bounds: L.latLngBounds([22.474447, 120.174156], [23.086414, 120.653181])
+					}),
+					
+					urbanPlanBoundary: L.tileLayer.wms('https://urbanproxy.kcg.gov.tw/arcgis/services/UrbanAPI/KcgUrbanDataForPlanAPI/MapServer/WmsServer', {
+						layers: '高雄市都市計畫範圍圖',
+						format: 'image/png',
+						transparent: true,
+						version: '1.3.0',
+						attribution: '© 高雄市政府'
+					}),
+					
+					trafficNetwork: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/LUIMAP/default/GoogleMapsCompatible/{z}/{y}/{x}', {
+						maxZoom: 19,
+						attribution: '© 內政部國土測繪中心'
+					})
+				};
+				
+				// 預設載入 Google 街景圖
+				window.currentBaseLayer = window.mapLayers.googleStreets.addTo(map);
+				
+				// 初始化箭頭和星星圖層群組
+				arrowLayerGroup = L.layerGroup().addTo(map);
+				oppositeLayerGroup = L.layerGroup().addTo(map);
+				
+				// 初始化測量工具
+				initializeMeasureTools();
+				
+				// 初始化圖層切換事件
+				initializeLayerSwitcher();
+				
+				// 監聽地圖旋轉事件
+				map.on('rotate', function(e) {
+					updateCompassDisplay(e.bearing || 0);
+				});
+				
+				// 地圖點選事件 - 重置線段高亮
+				map.on('click', function(e) {
+					resetLineHighlight();
+				});
+				
+				// 載入饋線資料
+				await loadFeederDataFromSheet();
+				
+				// 建立進度條
+				createProgressBar();
+				
+				updateLoadStatus('地圖初始化完成，請選擇 JSON 檔案或從雲端載入...');
+				
+				    // 🆕 在最後加入這行
+				initMobileNavigation();
+				console.log('✅ 地圖初始化完成');
+			}
+			
+
+			
+			// 新增：台灣地區電力座標原點
+const taiGridArr = [
+    {taiCode: 'A', taiGrid: [170000, 2750000]},
+    {taiCode: 'B', taiGrid: [250000, 2750000]},
+    {taiCode: 'C', taiGrid: [330000, 2750000]},
+    {taiCode: 'D', taiGrid: [170000, 2700000]},
+    {taiCode: 'E', taiGrid: [250000, 2700000]},
+    {taiCode: 'F', taiGrid: [330000, 2700000]},
+    {taiCode: 'G', taiGrid: [170000, 2650000]},
+    {taiCode: 'H', taiGrid: [250000, 2650000]},
+    {taiCode: 'J', taiGrid: [90000, 2600000]},
+    {taiCode: 'K', taiGrid: [170000, 2600000]},
+    {taiCode: 'L', taiGrid: [250000, 2600000]},
+    {taiCode: 'M', taiGrid: [90000, 2550000]},
+    {taiCode: 'N', taiGrid: [170000, 2550000]},
+    {taiCode: 'O', taiGrid: [250000, 2550000]},
+    {taiCode: 'P', taiGrid: [90000, 2500000]},
+    {taiCode: 'Q', taiGrid: [170000, 2500000]},
+    {taiCode: 'R', taiGrid: [250000, 2500000]},
+    {taiCode: 'T', taiGrid: [170000, 2450000]},
+    {taiCode: 'U', taiGrid: [250000, 2450000]},
+    {taiCode: 'V', taiGrid: [170000, 2400000]},
+    {taiCode: 'W', taiGrid: [250000, 2400000]},
+    {taiCode: 'X', taiGrid: [275000, 2614000]},
+    {taiCode: 'Y', taiGrid: [275000, 2564000]}
+];
+
+// 新增：定位功能
+function toggleContinuousLocation() {
+    if (isContinuousLocationEnabled) {
+        disableContinuousLocation();
+    } else {
+        enableContinuousLocation();
+    }
+}
+
+function enableContinuousLocation() {
+    if (navigator.geolocation) {
+        isContinuousLocationEnabled = true;
+        const btn = document.getElementById('locateBtn');
+        btn.classList.add('active');
+        btn.textContent = '⏹️ 停止定位';
+
+        watchId = navigator.geolocation.watchPosition(function (position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+
+            if (!userLocationMarker) {
+                userLocationMarker = L.marker([lat, lng], {
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    })
+                }).addTo(map);
+                userLocationMarker.bindPopup('您的位置').openPopup();
+            } else {
+                userLocationMarker.setLatLng([lat, lng]);
+            }
+
+            map.flyTo([lat, lng], 16, {
+                duration: 0.5,
+                noMoveStart: true
+            });
+
+        }, function () {
+            alert('無法獲取您的位置');
+            disableContinuousLocation();
+        }, {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 5000
+        });
+    } else {
+        alert('您的瀏覽器不支持地理定位');
+    }
+}
+
+function disableContinuousLocation() {
+    if (isContinuousLocationEnabled) {
+        isContinuousLocationEnabled = false;
+        const btn = document.getElementById('locateBtn');
+        btn.classList.remove('active');
+        btn.textContent = '📍 定位';
+
+        if (watchId) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+        }
+
+        if (userLocationMarker) {
+            map.removeLayer(userLocationMarker);
+            userLocationMarker = null;
+        }
+    }
+}
+
+// 新增：圖號座標轉換功能
+function searchByCoordinate() {
+    const input = document.getElementById('coordinateInput');
+    const coordinate = input.value.trim().toUpperCase();
+    
+    if (!coordinate) {
+        showToast('請輸入圖號座標！', 'error');
+        return;
+    }
+    
+    try {
+        const result = convertPowerCoordinate(coordinate);
+        const [lng, lat] = result.split(',').map(Number);
+        
+        // 在地圖上標記位置
+        const marker = L.marker([lat, lng], {
+            icon: L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            })
+        }).addTo(map);
+        
+        const popupContent = `
+            <div style="text-align: center;">
+                <h4>📍 圖號座標定位</h4>
+                <p><strong>座標:</strong> ${coordinate}</p>
+                <p><strong>經緯度:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
+                <button onclick="openStreetView(${lat}, ${lng})" 
+                        style="margin: 5px; padding: 5px 10px; background: #4285f4; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                    🗺️ 街景圖
+                </button>
+                <button onclick="copyCoordinates(${lat}, ${lng})" 
+                        style="margin: 5px; padding: 5px 10px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                    📋 複製座標
+                </button>
+            </div>
+        `;
+        
+        marker.bindPopup(popupContent).openPopup();
+        
+        // 移動地圖到該位置
+        map.flyTo([lat, lng], 18, {
+            duration: 1.0
+        });
+        
+        showToast(`✅ 座標定位成功: ${coordinate}`, 'success');
+        
+    } catch (error) {
+        console.error('座標轉換錯誤:', error);
+        showToast(`❌ 座標轉換失敗: ${error.message}`, 'error');
+    }
+}
+
+// 新增：電力座標轉換函數
+function convertPowerCoordinate(powerCoord, lonOffset = -0.00002, latOffset = -0.00001) {
+    powerCoord = powerCoord.toUpperCase();
+    
+    // 驗證格式
+    if (!/^[A-HJ-Z]\d{4}[A-H][A-E]\d{2,4}$/.test(powerCoord)) {
+        throw new Error('無效的電力座標格式');
+    }
+
+    try {
+        // 解析電力座標
+        const zone = powerCoord.charAt(0);
+        const block = powerCoord.substring(1, 5);
+        const subBlock = powerCoord.substring(5, 7);
+        const detail = powerCoord.substring(7, 11);
+
+        // 計算相對位移
+        const offsetX = calculateOffset(block, subBlock, detail, true);
+        const offsetY = calculateOffset(block, subBlock, detail, false);
+
+        // 查找對應的原點座標
+        const taiXY = taiGridArr.find(e => e.taiCode === zone);
+        if (!taiXY) {
+            throw new Error('無效的分區代碼');
+        }
+
+        // 計算TWD67座標
+        const twd67X = parseFloat((taiXY.taiGrid[0] + offsetX).toFixed(6));
+        const twd67Y = parseFloat((taiXY.taiGrid[1] + offsetY).toFixed(6));
+
+        // 轉換為WGS84
+        let wgs84 = proj4('EPSG:3828', 'WGS84', [twd67X, twd67Y]);
+        wgs84[0] = parseFloat((wgs84[0] + lonOffset).toFixed(10));
+        wgs84[1] = parseFloat((wgs84[1] + latOffset).toFixed(10));
+        
+        return `${wgs84[0]},${wgs84[1]}`;
+
+    } catch (error) {
+        throw new Error('轉換過程發生錯誤: ' + error.message);
+    }
+}
+
+function calculateOffset(block, subBlock, detail, isX) {
+    let offset = 0;
+    if (isX) {
+        offset += parseInt(block.substring(0, 2)) * 800;
+        offset += (subBlock.charCodeAt(0) - 65) * 100;
+        if (detail.length === 2) {
+            offset += parseInt(detail.substring(0, 1)) * 10;
+        } else if (detail.length === 4) {
+            offset += parseInt(detail.substring(2, 3)) * 1;
+        }
+    } else {
+        offset += parseInt(block.substring(2, 4)) * 500;
+        offset += (subBlock.charCodeAt(1) - 65) * 100;
+        if (detail.length === 2) {
+            offset += parseInt(detail.substring(1, 2)) * 10;
+        } else if (detail.length === 4) {
+            offset += parseInt(detail.substring(3, 4)) * 1;
+        }
+    }
+    return offset;
+}
+			
+			// 重置線段高亮 - 修改版
+			function resetLineHighlight() {
+				if (selectedLine) {
+					selectedLine.setStyle(selectedLine.originalStyle);
+					
+					// 🔧 效能優化：批量重置箭頭顏色
+					if (selectedLine.arrowMarkers && selectedLine.arrowMarkers.length > 0) {
+						selectedLine.arrowMarkers.forEach(marker => {
+							updateArrowColor(marker, selectedLine.originalStyle.color);
+						});
+					}
+					
+					selectedLine = null;
+					console.log('🔄 已重置線段高亮');
+				}
+			}
+			
+			// 更新載入狀態
+			function updateLoadStatus(message) {
+				const statusElement = document.getElementById('loadStatus');
+				statusElement.textContent = message;
+				console.log('📊', message);
+			}
+			
+			// 檔案讀取處理
+			document.getElementById('fileInput').addEventListener('change', function(event) {
+				const file = event.target.files[0];
+				if (!file) return;
+				
+				if (!file.name.toLowerCase().endsWith('.json')) {
+					alert('請選擇 JSON 格式的檔案！');
+					return;
+				}
+				
+				// 顯示載入指示器
+				document.getElementById('loadingIndicator').classList.add('show');
+				updateLoadStatus(`正在讀取檔案: ${file.name}...`);
+				
+				const reader = new FileReader();
+				reader.onload = function(e) {
+					try {
+						const jsonData = JSON.parse(e.target.result);
+						processJsonData(jsonData, file.name);
+					} catch (error) {
+						console.error('❌ JSON 解析錯誤:', error);
+						updateLoadStatus('❌ 檔案格式錯誤，請檢查 JSON 格式');
+						alert('檔案格式錯誤，請確認是有效的 JSON 檔案！');
+					} finally {
+						// 隱藏載入指示器
+						document.getElementById('loadingIndicator').classList.remove('show');
+					}
+				};
+				
+				reader.onerror = function() {
+					updateLoadStatus('❌ 檔案讀取失敗');
+					document.getElementById('loadingIndicator').classList.remove('show');
+				};
+				
+				reader.readAsText(file);
+			});
+			
+		// 處理 JSON 資料 - 修正版（針對台電格式）
+	function processJsonData(data, fileName) {
+		console.log('📁 開始處理檔案:', fileName);
+		console.log('📊 原始資料結構:', data);
+		
+		// 清除舊資料
+		clearAllLayers();
+		allDevicesData = [];
+		allLinesData = [];
+		layerGroups = {};
+		layerCounts = {};
+		currentFeederInfo = null;
+		selectedLine = null; // 重置選中線段
+		
+		let processedPointCount = 0;
+		let processedLineCount = 0;
+		let totalNodes = 0;
+		let totalLinks = 0;
+		
+		// 處理台電配電系統的 GeoNode 和 GeoLink 格式
+		if (data.GeoNode && Array.isArray(data.GeoNode)) {
+			console.log('✅ 識別為台電配電系統格式');
+			
+			const geoNodes = data.GeoNode;
+			const geoLinks = data.GeoLink || [];
+			
+			totalNodes = geoNodes.length;
+			totalLinks = geoLinks.length;
+			
+			updateLoadStatus(`找到 ${totalNodes} 個設備節點, ${totalLinks} 條連接線段，開始處理...`);
+			
+			// 提取饋線資訊
+			if (geoNodes.length > 0) {
+				extractFeederInfo(geoNodes[0], fileName);
+			}
+			
+			// 🔧 重要修正：先處理所有點設備 (GeoNode) - 確保 allDevicesData 完整
+			console.log('🔄 第一階段：處理所有點設備...');
+			geoNodes.forEach((node, index) => {
+				try {
+					const processedNode = processGeoNode(node, index);
+					if (processedNode) {
+						allDevicesData.push(processedNode);
+						processedPointCount++;
+					}
+				} catch (error) {
+					console.warn(`⚠️ GeoNode ${index} 處理失敗:`, error, node);
+				}
+			});
+			
+			console.log(`✅ 第一階段完成：處理了 ${processedPointCount} 個點設備`);
+			console.log(`📊 allDevicesData 現在包含 ${allDevicesData.length} 個設備`);
+			
+			// 🔧 重要修正：再處理線段 (GeoLink) - 此時可以查找節點資料
+			console.log('🔄 第二階段：處理所有線段...');
+			geoLinks.forEach((link, index) => {
+				try {
+					const processedLine = processGeoLink(link, index);
+					if (processedLine) {
+						allLinesData.push(processedLine);
+						processedLineCount++;
+					}
+				} catch (error) {
+					console.warn(`⚠️ GeoLink ${index} 處理失敗:`, error, link);
+				}
+			});
+			
+			console.log(`✅ 第二階段完成：處理了 ${processedLineCount} 條線段`);
+			
+		} else {
+			// 處理其他格式（保持原有邏輯）
+			let features = [];
+			
+			if (Array.isArray(data)) {
+				features = data;
+				console.log('✅ 識別為 Features 陣列格式');
+			} else if (data.type === 'FeatureCollection' && data.features) {
+				features = data.features;
+				console.log('✅ 識別為 GeoJSON FeatureCollection');
+			} else if (data.features && Array.isArray(data.features)) {
+				features = data.features;
+				console.log('✅ 識別為包含 features 的格式');
+			} else {
+				console.error('❌ 不支援的資料格式，資料結構:', Object.keys(data));
+				updateLoadStatus('❌ 不支援的資料格式，請檢查檔案結構');
+				return;
+			}
+			
+			totalNodes = features.length;
+			updateLoadStatus(`找到 ${totalNodes} 個 Feature，開始處理...`);
+			
+			// 提取饋線資訊
+			if (features.length > 0) {
+				extractFeederInfo(features[0], fileName);
+			}
+			
+			// 處理每個 Feature
+			features.forEach((feature, index) => {
+				try {
+					if (!feature.type || feature.type !== 'Feature') {
+						console.warn(`Feature ${index} 格式無效:`, feature);
+						return;
+					}
+					
+					if (!feature.geometry || !feature.geometry.type) {
+						console.warn(`Feature ${index} 缺少 geometry:`, feature);
+						return;
+					}
+					
+					const geometryType = feature.geometry.type;
+					
+					if (geometryType === 'Point') {
+						const processedNode = processPointFeature(feature, index);
+						if (processedNode) {
+							allDevicesData.push(processedNode);
+							processedPointCount++;
+						}
+					} else if (geometryType === 'LineString') {
+						const processedLine = processLineFeature(feature, index);
+						if (processedLine) {
+							allLinesData.push(processedLine);
+							processedLineCount++;
+						}
+					}
+				} catch (error) {
+					console.warn(`⚠️ Feature ${index} 處理失敗:`, error, feature);
+				}
+			});
+		}
+		
+		console.log(`✅ 成功處理 ${processedPointCount} 個點設備, ${processedLineCount} 條線段`);
+		updateLoadStatus(`✅ 成功載入 ${processedPointCount} 個設備, ${processedLineCount} 條線段`);
+		
+		// 建立圖層控制
+		createLayerControls();
+		
+		// 自動縮放到資料範圍
+		if (processedPointCount > 0 || processedLineCount > 0) {
+			fitMapToData();
+		}
+		
+		// 顯示饋線資訊
+		displayFeederInfo();
+		
+		// 顯示高亮控制
+		if (processedLineCount > 0) {
+			document.getElementById('highlightControls').style.display = 'block';
+		}
+	}
+
+	// 處理台電 GeoLink - 完全修正版（修正屬性位置）
+	function processGeoLink(link, index) {
+		console.log(`🔍 處理 GeoLink ${index}:`, link);
+		
+		if (!link.type || link.type !== 'Feature') {
+			console.warn(`GeoLink ${index} 不是有效的 Feature:`, link);
+			return null;
+		}
+		
+		const geometry = link.geometry;
+		if (!geometry || geometry.type !== 'LineString') {
+			console.warn(`GeoLink ${index} 不是線段幾何:`, link);
+			return null;
+		}
+		
+		// 🔧 重要修正：GeoLink 的屬性也在 geometry.properties 內部（和 GeoNode 一樣）
+		let properties = {};
+		
+		// 優先順序：geometry.properties > link.properties > 空物件
+		if (geometry.properties && typeof geometry.properties === 'object') {
+			properties = geometry.properties;
+			console.log(`✅ GeoLink ${index} 從 geometry.properties 取得屬性`);
+		} else if (link.properties && typeof link.properties === 'object') {
+			properties = link.properties;
+			console.log(`✅ GeoLink ${index} 從 link.properties 取得屬性`);
+		} else {
+			console.warn(`GeoLink ${index} 無法找到有效的 properties`);
+			properties = {};
+		}
+		
+		console.log(`🔍 GeoLink ${index} 完整屬性:`, properties);
+		
+		const coordinates = geometry.coordinates;
+		
+		if (!coordinates || !Array.isArray(coordinates) || coordinates.length < 2) {
+			console.warn(`GeoLink ${index} 座標格式無效:`, coordinates);
+			return null;
+		}
+		
+		// 轉換座標格式並驗證
+		const latLngs = [];
+		for (let i = 0; i < coordinates.length; i++) {
+			const coord = coordinates[i];
+			if (!Array.isArray(coord) || coord.length < 2) {
+				console.warn(`GeoLink ${index} 第 ${i} 個座標無效:`, coord);
+				continue;
+			}
+			
+			// 處理字串格式座標 - 轉換為數字
+			const lng = parseFloat(coord[0]);
+			const lat = parseFloat(coord[1]);
+			
+			if (isNaN(lng) || isNaN(lat)) {
+				console.warn(`GeoLink ${index} 第 ${i} 個座標數值無效:`, coord);
+				continue;
+			}
+			
+			// 檢查座標合理性（台灣範圍）
+			if (lng >= 118 && lng <= 122 && lat >= 21 && lat <= 26) {
+				latLngs.push([lat, lng]);
+			} else {
+				console.warn(`GeoLink ${index} 第 ${i} 個座標超出台灣範圍:`, [lng, lat]);
+			}
+		}
+		
+		if (latLngs.length < 2) {
+			console.warn(`GeoLink ${index} 有效座標點不足:`, latLngs);
+			return null;
+		}
+		
+		// 分類線段 - 根據電壓等級和線路類型
+		const category = categorizeGeoLinkAdvanced(properties);
+		
+		console.log(`✅ GeoLink ${index} 處理成功，座標點數: ${latLngs.length}, 類別: ${category}`);
+		
+		return {
+			coordinates: latLngs,
+			properties: properties,
+			category: category,
+			featureIndex: index,
+			type: 'LineString'
+		};
+	}
+
+	// GeoLink 進階分類 - 完全修正版（加強除錯輸出）
+	function categorizeGeoLinkAdvanced(properties) {
+		console.log('🔍 GeoLink 完整屬性分析:', properties);
+		
+		// 🔧 修正：直接從 GeoLink 屬性中取得電壓等級
+		let voltageLevel = 'unknown';
+		
+		// 方法1: 直接從 GeoLink 屬性判斷電壓等級
+		const vlevel = properties.VLevel || properties.vlevel || '';
+		console.log(`🔍 GeoLink VLevel 原始值:`, vlevel, `(類型: ${typeof vlevel})`);
+		
+		if (vlevel) {
+			const vLevel = parseInt(vlevel);
+			if (vLevel === 1) {
+				voltageLevel = '11.4kv';
+			} else if (vLevel === 2) {
+				voltageLevel = '22.8kv';
+			}
+			console.log(`✅ 從 GeoLink 直接取得電壓等級: VLevel=${vLevel} -> ${voltageLevel}`);
+		} else {
+			// 方法2: 如果 GeoLink 沒有 VLevel，嘗試查找節點
+			const fromId = properties.FromID;
+			const toId = properties.ToID;
+			
+			if (fromId || toId) {
+				const fromNode = allDevicesData.find(device => 
+					device.properties.ID == fromId || device.properties.ID === fromId
+				);
+				const toNode = allDevicesData.find(device => 
+					device.properties.ID == toId || device.properties.ID === toId
+				);
+				
+				console.log(`🔍 查找節點 - FromID: ${fromId}, ToID: ${toId}`);
+				console.log(`🔍 找到起點節點:`, fromNode ? `ID=${fromNode.properties.ID}, VLevel=${fromNode.properties.VLevel}` : '未找到');
+				console.log(`🔍 找到終點節點:`, toNode ? `ID=${toNode.properties.ID}, VLevel=${toNode.properties.VLevel}` : '未找到');
+				
+				const referenceNode = fromNode || toNode;
+				if (referenceNode && referenceNode.properties.VLevel) {
+					const vLevel = parseInt(referenceNode.properties.VLevel);
+					if (vLevel === 1) {
+						voltageLevel = '11.4kv';
+					} else if (vLevel === 2) {
+						voltageLevel = '22.8kv';
+					}
+					console.log(`✅ 從節點取得電壓等級: VLevel=${vLevel} -> ${voltageLevel}`);
+				}
+			}
+		}
+		
+		// 🔧 修正：判斷架空/地下 - 檢查所有可能的屬性名稱和值
+		const ohug = properties.OHUG || properties.ohug || properties.Ohug || '';
+		console.log(`🔍 OHUG 原始值:`, ohug, `(類型: ${typeof ohug})`);
+		
+		let isUnderground = false;
+		
+		// 處理不同的資料類型和值
+		if (typeof ohug === 'string') {
+			isUnderground = (ohug === '1' || ohug.toLowerCase() === 'underground' || ohug.toLowerCase() === 'u');
+		} else if (typeof ohug === 'number') {
+			isUnderground = (ohug === 1);
+		} else if (typeof ohug === 'boolean') {
+			isUnderground = ohug;
+		}
+		
+		console.log(`🔍 架設方式判斷: OHUG=${ohug} -> ${isUnderground ? '地下' : '架空'}`);
+		
+		// 🔧 修正：判斷主幹線/分歧線 - 檢查所有可能的屬性名稱和值
+		const cabType = properties.CabType || properties.cabtype || properties.Cabtype || '';
+		console.log(`🔍 CabType 原始值:`, cabType, `(類型: ${typeof cabType})`);
+		
+		let isMainLine = false;
+		
+		// 處理不同的資料類型和值
+		if (typeof cabType === 'string') {
+			isMainLine = (cabType === '0' || cabType.toLowerCase() === 'main' || cabType.toLowerCase() === 'm');
+		} else if (typeof cabType === 'number') {
+			isMainLine = (cabType === 0);
+		} else if (typeof cabType === 'boolean') {
+			isMainLine = !cabType; // 假設 false 代表主幹線
+		}
+		
+		console.log(`🔍 線路類型判斷: CabType=${cabType} -> ${isMainLine ? '主幹線' : '分歧線'}`);
+		
+		// 組合分類
+		let category = '';
+		
+		if (voltageLevel === '22.8kv') {
+			if (isMainLine) {
+				category = isUnderground ? 'line_22_8kv_main_underground' : 'line_22_8kv_main_overhead';
+			} else {
+				category = isUnderground ? 'line_22_8kv_branch_underground' : 'line_22_8kv_branch_overhead';
+			}
+		} else if (voltageLevel === '11.4kv') {
+			if (isMainLine) {
+				category = isUnderground ? 'line_11_4kv_main_underground' : 'line_11_4kv_main_overhead';
+			} else {
+				category = isUnderground ? 'line_11_4kv_branch_underground' : 'line_11_4kv_branch_overhead';
+			}
+		} else {
+			// 未知電壓等級
+			category = isUnderground ? 'line_other_underground' : 'line_other_overhead';
+		}
+		
+		console.log(`✅ 最終分類結果:`);
+		console.log(`   - 電壓等級: ${voltageLevel}`);
+		console.log(`   - 架設方式: ${isUnderground ? '地下' : '架空'}`);
+		console.log(`   - 線路類型: ${isMainLine ? '主幹線' : '分歧線'}`);
+		console.log(`   - 最終類別: ${category}`);
+		
+		return category;
+	}
+	// 處理台電 GeoNode - 完全修正版（參考你的 Python 程式）
+	function processGeoNode(node, index) {
+		console.log(`🔍 處理 GeoNode ${index}:`, node);
+		
+		if (!node.type || node.type !== 'Feature') {
+			console.warn(`GeoNode ${index} 不是有效的 Feature:`, node);
+			return null;
+		}
+		
+		const geometry = node.geometry;
+		if (!geometry || geometry.type !== 'Point') {
+			console.warn(`GeoNode ${index} 不是點幾何:`, node);
+			return null;
+		}
+		
+		// 🔧 重要修正：根據你的 Python 程式，properties 在 geometry.properties 內部
+		const properties = geometry.properties || {};
+		const coordinates = geometry.coordinates;
+		
+		console.log(`🔍 GeoNode ${index} 屬性內容:`, properties);
+		console.log(`🔍 GeoNode ${index} 座標:`, coordinates);
+		
+		if (!coordinates || !Array.isArray(coordinates) || coordinates.length < 2) {
+			console.warn(`GeoNode ${index} 座標格式無效:`, coordinates);
+			return null;
+		}
+		
+		// 🔧 重要修正：你的資料中座標是字串格式，需要轉換為數字
+		const lng = parseFloat(coordinates[0]);
+		const lat = parseFloat(coordinates[1]);
+		
+		if (isNaN(lng) || isNaN(lat)) {
+			console.warn(`GeoNode ${index} 座標轉換失敗:`, coordinates);
+			return null;
+		}
+		
+		// 檢查座標合理性（台灣範圍）
+		if (lng < 118 || lng > 122 || lat < 21 || lat > 26) {
+			console.warn(`GeoNode ${index} 座標超出台灣範圍:`, [lng, lat]);
+			// 不直接 return null，繼續處理（可能是測試資料）
+		}
+		
+		// 🔧 標準化屬性 - 確保所有屬性都是正確的資料類型
+		const standardizedProps = {
+			ID: properties.ID || properties.id || `temp_${index}`,
+			Area: properties.Area || properties.area || '',
+			Feeder: properties.Feeder || properties.feeder || '',
+			Tpclid: properties.Tpclid || properties.tpclid || '',
+			FSC: properties.FSC || properties.fsc || '',
+			VLevel: properties.VLevel || properties.vlevel || '',
+			CabType: properties.CabType || properties.cabtype || '',
+			OHUG: properties.OHUG || properties.ohug || '',
+			Tag: properties.Tag || properties.tag || '',
+			Spec: properties.Spec || properties.spec || '',
+			Length: properties.Length || properties.length || '',
+			Location: properties.Location || properties.location || '',
+			Type: properties.Type || properties.type || '',
+			Name: properties.Name || properties.name || '',
+			Visible: properties.Visible !== undefined ? properties.Visible : true,
+			NO: properties.NO || false,
+			Auto: properties.Auto || false,
+			Fuse: properties.Fuse || false,
+			Opposite: properties.Opposite || '',
+			
+			// 容量相關
+			Capacity: properties.Capacity || '',
+			Capacities: properties.Capacities || '',
+			Capacity1: properties.Capacity1 || '',
+			Capacity2: properties.Capacity2 || '',
+			Capacity3: properties.Capacity3 || '',
+			
+			// 相別相關
+			Group1: properties.Group1 || '',
+			Phase1: properties.Phase1 || '',
+			Phase2: properties.Phase2 || '',
+			Phase3: properties.Phase3 || '',
+			
+			// 燈具類型
+			LightType1: properties.LightType1 || '',
+			LightType2: properties.LightType2 || '',
+			LightType3: properties.LightType3 || '',
+			SupplyType: properties.SupplyType || '',
+			
+			// 迴路資訊
+			SrcLoop: properties.SrcLoop || null,
+			DestLoop: properties.DestLoop || null
+		};
+		
+		// 保留原始屬性（以防有其他未知屬性）
+		Object.keys(properties).forEach(key => {
+			if (!standardizedProps.hasOwnProperty(key)) {
+				standardizedProps[key] = properties[key];
+			}
+		});
+		
+		// 分類設備
+		const category = categorizeNode(standardizedProps);
+		
+		console.log(`✅ GeoNode ${index} 處理成功:`);
+		console.log(`   - ID: ${standardizedProps.ID}`);
+		console.log(`   - FSC: ${standardizedProps.FSC}`);
+		console.log(`   - Area: ${standardizedProps.Area}`);
+		console.log(`   - Feeder: ${standardizedProps.Feeder}`);
+		console.log(`   - 類別: ${category}`);
+		console.log(`   - 座標: [${lng}, ${lat}]`);
+		
+		return {
+			coordinates: [lng, lat],
+			properties: standardizedProps,
+			category: category,
+			featureIndex: index,
+			type: 'Point'
+		};
+	}
+
+	// 處理線段 Feature - 新函數
+	function processLineFeature(feature, index) {
+		const geometry = feature.geometry;
+		const properties = feature.properties || {};
+		
+		if (!geometry.coordinates || !Array.isArray(geometry.coordinates)) {
+			console.warn(`線段 Feature ${index} 缺少有效座標:`, feature);
+			return null;
+		}
+		
+		const coordinates = geometry.coordinates;
+		
+		// 驗證 LineString 座標格式
+		if (coordinates.length < 2) {
+			console.warn(`線段 Feature ${index} 座標點不足:`, coordinates);
+			return null;
+		}
+		
+		// 轉換座標格式並驗證
+		const latLngs = [];
+		for (let i = 0; i < coordinates.length; i++) {
+			const coord = coordinates[i];
+			if (!Array.isArray(coord) || coord.length < 2) {
+				console.warn(`線段 Feature ${index} 第 ${i} 個座標無效:`, coord);
+				continue;
+			}
+			
+			// 處理字串格式座標 - 轉換為數字
+			const lng = parseFloat(coord[0]);
+			const lat = parseFloat(coord[1]);
+			
+			if (isNaN(lng) || isNaN(lat)) {
+				console.warn(`線段 Feature ${index} 第 ${i} 個座標數值無效:`, coord);
+				continue;
+			}
+			
+			// 檢查座標合理性（台灣範圍）
+			if (lng >= 118 && lng <= 122 && lat >= 21 && lat <= 26) {
+				latLngs.push([lat, lng]);
+			} else {
+				console.warn(`線段 Feature ${index} 第 ${i} 個座標超出台灣範圍:`, [lng, lat]);
+			}
+		}
+		
+		if (latLngs.length < 2) {
+			console.warn(`線段 Feature ${index} 有效座標點不足:`, latLngs);
+			return null;
+		}
+		
+		// 分類線段
+		const category = categorizeLineFeatureAdvanced(properties);
+		
+		console.log(`✅ 線段 Feature ${index} 處理成功，座標點數: ${latLngs.length}, 類別: ${category}`);
+		
+		return {
+			coordinates: latLngs,
+			properties: properties,
+			category: category,
+			featureIndex: index,
+			type: 'LineString'
+		};
+	}
+
+	// 處理點 Feature - 新函數
+	function processPointFeature(feature, index) {
+		const geometry = feature.geometry;
+		const properties = feature.properties || {};
+		
+		if (!geometry.coordinates || !Array.isArray(geometry.coordinates)) {
+			console.warn(`點 Feature ${index} 缺少有效座標:`, feature);
+			return null;
+		}
+		
+		const coordinates = geometry.coordinates;
+		
+		if (coordinates.length < 2) {
+			console.warn(`點 Feature ${index} 座標格式無效:`, coordinates);
+			return null;
+		}
+		
+		// 確保座標是數字 - 處理字串格式座標
+		const lng = parseFloat(coordinates[0]);
+		const lat = parseFloat(coordinates[1]);
+		
+		if (isNaN(lng) || isNaN(lat)) {
+			console.warn(`點 Feature ${index} 座標無效:`, coordinates);
+			return null;
+		}
+		
+		// 檢查座標合理性（台灣範圍）
+		if (lng < 118 || lng > 122 || lat < 21 || lat > 26) {
+			console.warn(`點 Feature ${index} 座標超出台灣範圍:`, [lng, lat]);
+			return null;
+		}
+		
+		// 分類設備
+		const category = categorizeNode(properties);
+		
+		return {
+			coordinates: [lng, lat],
+			properties: properties,
+			category: category,
+			featureIndex: index,
+			type: 'Point'
+		};
+	}
+
+	// 線段分類 - 針對 Feature 格式（進階版）
+	function categorizeLineFeatureAdvanced(properties) {
+		// 判斷電壓等級（這裡需要根據實際資料調整）
+		const vlevel = properties.VLevel || properties.vlevel || '';
+		let voltageLevel = 'unknown';
+		
+		if (vlevel) {
+			const vLevel = parseInt(vlevel);
+			if (vLevel === 1) {
+				voltageLevel = '11.4kv';
+			} else if (vLevel === 2) {
+				voltageLevel = '22.8kv';
+			}
+		}
+		
+		// 判斷架空/地下
+		const ohug = properties.OHUG || properties.ohug || '';
+		const isUnderground = (ohug === '1' || ohug === 1);
+		
+		// 判斷主幹線/分歧線
+		const cabType = properties.CabType || properties.cabtype || '';
+		const isMainLine = (cabType === '0' || cabType === 0);
+		
+		// 組合分類
+		let category = '';
+		
+		if (voltageLevel === '22.8kv') {
+			if (isMainLine) {
+				category = isUnderground ? 'line_22_8kv_main_underground' : 'line_22_8kv_main_overhead';
+			} else {
+				category = isUnderground ? 'line_22_8kv_branch_underground' : 'line_22_8kv_branch_overhead';
+			}
+		} else if (voltageLevel === '11.4kv') {
+			if (isMainLine) {
+				category = isUnderground ? 'line_11_4kv_main_underground' : 'line_11_4kv_main_overhead';
+			} else {
+				category = isUnderground ? 'line_11_4kv_branch_underground' : 'line_11_4kv_branch_overhead';
+			}
+		} else {
+			// 未知電壓等級
+			category = isUnderground ? 'line_other_underground' : 'line_other_overhead';
+		}
+		
+		return category;
+	}
+			
+			// 提取饋線資訊 - 修正版
+	function extractFeederInfo(firstNode, fileName) {
+		let properties = {};
+		
+		// 台電格式
+		if (firstNode.geometry && firstNode.geometry.properties) {
+			properties = firstNode.geometry.properties;
+		}
+		// 標準 GeoJSON 格式
+		else if (firstNode.properties) {
+			properties = firstNode.properties;
+		}
+		
+		currentFeederInfo = {
+			fileName: fileName,
+			area: properties.Area || '未知',
+			feeder: properties.Feeder || '未知',
+			totalDevices: 0,
+			totalLines: 0
+		};
+		
+		console.log('📊 饋線資訊:', currentFeederInfo);
+	}
+			
+		   // 顯示饋線資訊 - 改進版
+	function displayFeederInfo() {
+		if (!currentFeederInfo) return;
+		
+		// 更新統計數據
+		currentFeederInfo.totalDevices = allDevicesData.length;
+		currentFeederInfo.totalLines = allLinesData.length;
+		
+		const infoContainer = document.getElementById('feederInfo');
+		if (infoContainer) {
+			infoContainer.innerHTML = `
+				<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+					<h3 style="margin: 0 0 8px 0; font-size: 16px;">📊 ${currentFeederInfo.fileName}</h3>
+					<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+						<div>🏢 區域: ${currentFeederInfo.area}</div>
+						<div>⚡ 饋線: ${currentFeederInfo.feeder}</div>
+						<div>📍 設備: ${currentFeederInfo.totalDevices}</div>
+						<div>📏 線段: ${currentFeederInfo.totalLines}</div>
+					</div>
+				</div>
+			`;
+			infoContainer.style.display = 'block';
+		}
+	}
+			
+			// 設備分類 - 根據台電 FSC 代碼（續）
+			  function categorizeNode(properties) {
+				  const fsc = properties.FSC || properties.fsc || '';
+				  const fscNum = parseInt(fsc);
+				  
+				  // 根據台電 FSC 代碼分類
+				  switch (fscNum) {
+					  case 106: return 'poles_106';      // 電桿設備
+					  case 108: return 'cable_heads';    // 電纜頭
+					  case 109: return 'pole_markers';   // 電桿標示
+					  case 110: return 'solar';          // 太陽能設備
+					  case 114: return 'switches';       // 開關設備
+					  case 115: return 'transformers';   // 變壓器
+					  case 116: return 'poles_116';      // 電桿設備
+					  case 120: return 'grounding';      // 接地設備
+					  case 131: return 'others_131';     // 其他設備
+					  default: return 'unknown';         // 未知設備
+				  }
+			  }
+			  
+			  // 更新圖層分類定義 - 針對線路區隔化
+	function createLayerControls() {
+    // 定義設備類別 - 根據台電 FSC 分類
+    const categories = {
+        // 點設備類別
+        'poles_106': { name: '🔴 線路節點 (FSC:106)', color: '#e74c3c', count: 0, type: 'point' },
+        'cable_heads': { name: '🟠 變電所 (FSC:108)', color: '#f39c12', count: 0, type: 'point' },
+        'pole_markers': { name: '🟣 電桿標示 (FSC:109)', color: '#9b59b6', count: 0, type: 'point' },
+        'solar': { name: '🟡 太陽能設備 (FSC:110)', color: '#f1c40f', count: 0, type: 'point' },
+        'switches': { name: '🟢 開關設備 (FSC:114)', color: '#27ae60', count: 0, type: 'point' },
+        'transformers': { name: '🔵 變壓器 (FSC:115)', color: '#3498db', count: 0, type: 'point' },
+        'poles_116': { name: '🟤 電桿設備 (FSC:116)', color: '#8b4513', count: 0, type: 'point' },
+        'grounding': { name: '⚫ 電桿設備 (FSC:120)', color: '#2c3e50', count: 0, type: 'point' },
+        'others_131': { name: '🟣 其他設備 (FSC:131)', color: '#8e44ad', count: 0, type: 'point' },
+        'unknown': { name: '🔘 未知設備', color: '#95a5a6', count: 0, type: 'point' },
+        
+        // 線段類別 - 根據電壓等級、架空地下、主幹分歧區隔
+        'line_22_8kv_main_overhead': { name: '🔴 22.8kV 主幹線 (架空)', color: '#dc3545', count: 0, type: 'line', style: 'solid' },
+        'line_22_8kv_main_underground': { name: '🔴 22.8kV 主幹線 (地下)', color: '#dc3545', count: 0, type: 'line', style: 'dashed' },
+        'line_22_8kv_branch_overhead': { name: '🔵 22.8kV 分歧線 (架空)', color: '#007bff', count: 0, type: 'line', style: 'solid' },
+        'line_22_8kv_branch_underground': { name: '🔵 22.8kV 分歧線 (地下)', color: '#007bff', count: 0, type: 'line', style: 'dashed' },
+        'line_11_4kv_main_overhead': { name: '🟠 11.4kV 主幹線 (架空)', color: '#fd7e14', count: 0, type: 'line', style: 'solid' },
+        'line_11_4kv_main_underground': { name: '🟠 11.4kV 主幹線 (地下)', color: '#fd7e14', count: 0, type: 'line', style: 'dashed' },
+        'line_11_4kv_branch_overhead': { name: '🟢 11.4kV 分歧線 (架空)', color: '#28a745', count: 0, type: 'line', style: 'solid' },
+        'line_11_4kv_branch_underground': { name: '🟢 11.4kV 分歧線 (地下)', color: '#28a745', count: 0, type: 'line', style: 'dashed' },
+        'line_other_overhead': { name: '⚫ 其他線路 (架空)', color: '#6c757d', count: 0, type: 'line', style: 'solid' },
+        'line_other_underground': { name: '⚫ 其他線路 (地下)', color: '#6c757d', count: 0, type: 'line', style: 'dashed' }
+    };
+    
+    // 定義不預設顯示的類別
+    const initiallyHiddenCategories = [
+        'poles_106', 
+        'grounding',
+        'poles_116',
+        'pole_markers',
+        'transformers',
+        'unknown',
+        'others_131',
+        'line_22_8kv_branch_overhead',
+        'line_22_8kv_branch_underground', 
+        'line_11_4kv_branch_overhead',
+        'line_11_4kv_branch_underground'
+    ];
+    
+    // 統計點設備數量並建立圖層群組
+    allDevicesData.forEach(device => {
+        const category = device.category;
+        if (categories[category]) {
+            categories[category].count++;
+        }
+        
+        if (!layerGroups[category]) {
+            layerGroups[category] = L.layerGroup();
+            
+            // 只有不在隱藏清單的才加入地圖
+            if (!initiallyHiddenCategories.includes(category)) {
+                layerGroups[category].addTo(map);
+            }
+        }
+        
+        const marker = createMarker(device, categories[category].color);
+        layerGroups[category].addLayer(marker);
+    });
+
+    // 統計線段數量並建立圖層群組
+    allLinesData.forEach(line => {
+        const category = line.category;
+        if (categories[category]) {
+            categories[category].count++;
+        }
+        
+        if (!layerGroups[category]) {
+            layerGroups[category] = L.layerGroup();
+            
+            if (!initiallyHiddenCategories.includes(category)) {
+                layerGroups[category].addTo(map);
+            }
+        }
+        
+        const polyline = createPolylineAdvanced(line, categories[category]);
+        layerGroups[category].addLayer(polyline);
+        
+        if (!initiallyHiddenCategories.includes(category)) {
+            if (polyline.arrowMarkers && Array.isArray(polyline.arrowMarkers)) {
+                polyline.arrowMarkers.forEach(marker => {
+                    arrowLayerGroup.addLayer(marker);
+                });
+            }
+        }
+    });
+    
+    // 更新圖層計數
+    layerCounts = Object.keys(categories).reduce((acc, key) => {
+        acc[key] = categories[key].count;
+        return acc;
+    }, {});
+    
+    // 建立控制介面
+    const container = document.getElementById('layerControlsContainer');
+    container.innerHTML = '';
+    
+    // 🆕 新增全選控制區域
+    const selectAllContainer = document.createElement('div');
+    selectAllContainer.className = 'select-all-container';
+	selectAllContainer.innerHTML = `
+		<div class="select-all-section">
+			<h4>🔧 批次控制</h4>
+			<div class="select-all-buttons">
+				<button class="select-all-btn equipment" id="equipmentToggleBtn" onclick="toggleAllEquipment()">
+					📍 全選設備
+				</button>
+				<button class="select-all-btn lines" id="linesToggleBtn" onclick="toggleAllLines()">
+					⚡ 全選線路
+				</button>
+				<button class="select-all-btn deselect" onclick="deselectAll()">
+					❌ 全部取消
+				</button>
+			</div>
+		</div>
+		<hr class="divider">
+	`;
+    container.appendChild(selectAllContainer);
+    
+    // 先顯示點設備
+    const pointCategories = Object.keys(categories).filter(key => 
+        categories[key].type === 'point' && categories[key].count > 0
+    );
+    if (pointCategories.length > 0) {
+        const pointHeader = document.createElement('h4');
+        pointHeader.textContent = '📍 點設備';
+        pointHeader.style.cssText = 'margin: 10px 0 5px 0; font-size: 14px; color: #2c3e50; border-bottom: 1px solid #ecf0f1; padding-bottom: 3px;';
+        container.appendChild(pointHeader);
+        
+        pointCategories.forEach(categoryKey => {
+            const category = categories[categoryKey];
+            const layerItem = createLayerControlItem(categoryKey, category);
+            container.appendChild(layerItem);
+        });
+    }
+    
+    // 再顯示線段
+    const lineCategories = Object.keys(categories).filter(key => 
+        categories[key].type === 'line' && categories[key].count > 0
+    );
+    if (lineCategories.length > 0) {
+        const lineHeader = document.createElement('h4');
+        lineHeader.textContent = '📏 線段';
+        lineHeader.style.cssText = 'margin: 15px 0 5px 0; font-size: 14px; color: #2c3e50; border-bottom: 1px solid #ecf0f1; padding-bottom: 3px;';
+        container.appendChild(lineHeader);
+        
+        lineCategories.forEach(categoryKey => {
+            const category = categories[categoryKey];
+            const layerItem = createLayerControlItem(categoryKey, category);
+            container.appendChild(layerItem);
+        });
+    }
+    
+    // 顯示統計摘要
+    const totalPoints = pointCategories.reduce((sum, key) => sum + categories[key].count, 0);
+    const totalLines = lineCategories.reduce((sum, key) => sum + categories[key].count, 0);
+    
+    const summaryDiv = document.createElement('div');
+    summaryDiv.style.cssText = 'margin-top: 15px; padding: 8px; background: #f8f9fa; border-radius: 4px; font-size: 12px; color: #6c757d;';
+    summaryDiv.innerHTML = `
+        <strong>📊 資料統計</strong><br>
+        點設備: ${totalPoints} 個<br>
+        線段: ${totalLines} 條
+    `;
+    container.appendChild(summaryDiv);
+}
+			  
+		// 建立圖層控制項目 - 修改版
+		function createLayerControlItem(categoryKey, category) {
+			// 🔧 修改：擴展預設隱藏清單，包含所有分歧線段
+			const initiallyHiddenCategories = [
+				'poles_106', 
+				'grounding',
+				'poles_116',
+				'pole_markers',
+				'transformers',
+				'unknown',
+				'others_131',
+				'line_22_8kv_branch_overhead',
+				'line_22_8kv_branch_underground', 
+				'line_11_4kv_branch_overhead',
+				'line_11_4kv_branch_underground'
+			];
+			
+			const isChecked = !initiallyHiddenCategories.includes(categoryKey);
+			
+			const layerItem = document.createElement('div');
+			layerItem.className = 'layer-item';
+			
+			layerItem.innerHTML = `
+				<input type="checkbox" id="layer_${categoryKey}" ${isChecked ? 'checked' : ''} onchange="toggleLayer('${categoryKey}')">
+				<label for="layer_${categoryKey}">${category.name}</label>
+				<span class="layer-count">${category.count}</span>
+			`;
+			
+			return layerItem;
+		}
+		// 🆕 切換設備顯示功能
+function toggleAllEquipment() {
+    const equipmentCategories = [
+        'poles_106', 'cable_heads', 'pole_markers', 'solar', 
+        'switches', 'transformers', 'poles_116', 'grounding', 
+        'others_131', 'unknown'
+    ];
+    
+    const btn = document.getElementById('equipmentToggleBtn');
+    const isActive = btn.classList.contains('active');
+    
+    if (isActive) {
+        // 目前是啟用狀態，執行關閉
+        equipmentCategories.forEach(category => {
+            const checkbox = document.getElementById(`layer_${category}`);
+            const layerGroup = layerGroups[category];
+            
+            if (checkbox && layerGroup && checkbox.checked) {
+                checkbox.checked = false;
+                map.removeLayer(layerGroup);
+            }
+        });
+        
+        // 更新按鈕狀態
+        btn.classList.remove('active');
+        btn.innerHTML = '📍 全選設備';
+        console.log('📍 已隱藏所有設備圖層');
+        
+    } else {
+        // 目前是關閉狀態，執行開啟
+        equipmentCategories.forEach(category => {
+            const checkbox = document.getElementById(`layer_${category}`);
+            const layerGroup = layerGroups[category];
+            
+            if (checkbox && layerGroup && !checkbox.checked) {
+                checkbox.checked = true;
+                map.addLayer(layerGroup);
+            }
+        });
+        
+        // 更新按鈕狀態
+        btn.classList.add('active');
+        btn.innerHTML = '📍 隱藏設備';
+        console.log('📍 已顯示所有設備圖層');
+    }
+}
+
+// 🆕 切換線路顯示功能
+function toggleAllLines() {
+    const lineCategories = [
+        'line_22_8kv_main_overhead', 'line_22_8kv_main_underground',
+        'line_22_8kv_branch_overhead', 'line_22_8kv_branch_underground',
+        'line_11_4kv_main_overhead', 'line_11_4kv_main_underground',
+        'line_11_4kv_branch_overhead', 'line_11_4kv_branch_underground',
+        'line_other_overhead', 'line_other_underground'
+    ];
+    
+    const btn = document.getElementById('linesToggleBtn');
+    const isActive = btn.classList.contains('active');
+    
+    if (isActive) {
+        // 目前是啟用狀態，執行關閉
+        lineCategories.forEach(category => {
+            const checkbox = document.getElementById(`layer_${category}`);
+            const layerGroup = layerGroups[category];
+            
+            if (checkbox && layerGroup && checkbox.checked) {
+                checkbox.checked = false;
+                map.removeLayer(layerGroup);
+                
+                // 隱藏該圖層的箭頭
+                layerGroup.eachLayer(layer => {
+                    if (layer.arrowMarkers && Array.isArray(layer.arrowMarkers)) {
+                        layer.arrowMarkers.forEach(marker => {
+                            arrowLayerGroup.removeLayer(marker);
+                        });
+                    }
+                });
+            }
+        });
+        
+        // 更新按鈕狀態
+        btn.classList.remove('active');
+        btn.innerHTML = '⚡ 全選線路';
+        console.log('⚡ 已隱藏所有線路圖層');
+        
+    } else {
+        // 目前是關閉狀態，執行開啟
+        lineCategories.forEach(category => {
+            const checkbox = document.getElementById(`layer_${category}`);
+            const layerGroup = layerGroups[category];
+            
+            if (checkbox && layerGroup && !checkbox.checked) {
+                checkbox.checked = true;
+                map.addLayer(layerGroup);
+                
+                // 顯示該圖層的箭頭
+                layerGroup.eachLayer(layer => {
+                    if (layer.arrowMarkers && Array.isArray(layer.arrowMarkers)) {
+                        layer.arrowMarkers.forEach(marker => {
+                            arrowLayerGroup.addLayer(marker);
+                        });
+                    }
+                });
+            }
+        });
+        
+        // 更新按鈕狀態
+        btn.classList.add('active');
+        btn.innerHTML = '⚡ 隱藏線路';
+        console.log('⚡ 已顯示所有線路圖層');
+    }
+}
+
+		// 🆕 全選設備功能
+function selectAllEquipment() {
+    const equipmentCategories = [
+        'poles_106', 'cable_heads', 'pole_markers', 'solar', 
+        'switches', 'transformers', 'poles_116', 'grounding', 
+        'others_131', 'unknown'
+    ];
+    
+    equipmentCategories.forEach(category => {
+        const checkbox = document.getElementById(`layer_${category}`);
+        const layerGroup = layerGroups[category];
+        
+        if (checkbox && layerGroup && !checkbox.checked) {
+            checkbox.checked = true;
+            map.addLayer(layerGroup);
+        }
+    });
+    
+    console.log('📍 已全選所有設備圖層');
+}
+
+// 🆕 全選線路功能
+function selectAllLines() {
+    const lineCategories = [
+        'line_22_8kv_main_overhead', 'line_22_8kv_main_underground',
+        'line_22_8kv_branch_overhead', 'line_22_8kv_branch_underground',
+        'line_11_4kv_main_overhead', 'line_11_4kv_main_underground',
+        'line_11_4kv_branch_overhead', 'line_11_4kv_branch_underground',
+        'line_other_overhead', 'line_other_underground'
+    ];
+    
+    lineCategories.forEach(category => {
+        const checkbox = document.getElementById(`layer_${category}`);
+        const layerGroup = layerGroups[category];
+        
+        if (checkbox && layerGroup && !checkbox.checked) {
+            checkbox.checked = true;
+            map.addLayer(layerGroup);
+            
+            // 顯示該圖層的箭頭
+            layerGroup.eachLayer(layer => {
+                if (layer.arrowMarkers && Array.isArray(layer.arrowMarkers)) {
+                    layer.arrowMarkers.forEach(marker => {
+                        arrowLayerGroup.addLayer(marker);
+                    });
+                }
+            });
+        }
+    });
+    
+    console.log('⚡ 已全選所有線路圖層');
+}
+
+// 🔧 修改全部取消功能（同時重置按鈕狀態）
+function deselectAll() {
+    Object.keys(layerGroups).forEach(category => {
+        const checkbox = document.getElementById(`layer_${category}`);
+        const layerGroup = layerGroups[category];
+        
+        if (checkbox && layerGroup && checkbox.checked) {
+            checkbox.checked = false;
+            map.removeLayer(layerGroup);
+            
+            // 隱藏該圖層的箭頭
+            layerGroup.eachLayer(layer => {
+                if (layer.arrowMarkers && Array.isArray(layer.arrowMarkers)) {
+                    layer.arrowMarkers.forEach(marker => {
+                        arrowLayerGroup.removeLayer(marker);
+                    });
+                }
+            });
+        }
+    });
+    
+    // 🆕 重置按鈕狀態
+    const equipmentBtn = document.getElementById('equipmentToggleBtn');
+    const linesBtn = document.getElementById('linesToggleBtn');
+    
+    if (equipmentBtn) {
+        equipmentBtn.classList.remove('active');
+        equipmentBtn.innerHTML = '📍 全選設備';
+    }
+    
+    if (linesBtn) {
+        linesBtn.classList.remove('active');
+        linesBtn.innerHTML = '⚡ 全選線路';
+    }
+    
+    console.log('❌ 已取消所有圖層並重置按鈕狀態');
+}
+			  
+			  // 建立進階線段 - 支援實線虛線區隔 + 點選高亮
+	// 建立進階線段 - 支援實線虛線區隔 + 點選高亮 + 箭頭方向
+	function createPolylineAdvanced(lineData, categoryInfo) {
+		const coordinates = lineData.coordinates;
+		const props = lineData.properties;
+		
+		// 建立線段樣式
+		const lineStyle = {
+			color: categoryInfo.color,
+			weight: 4,
+			opacity: 0.8,
+			smoothFactor: 1
+		};
+		
+		// 根據樣式設定實線或虛線
+		if (categoryInfo.style === 'dashed') {
+			lineStyle.dashArray = '8,8';  // 地下線路用虛線
+		} else {
+			lineStyle.dashArray = null;     // 架空線路用實線
+		}
+		
+		const polyline = L.polyline(coordinates, lineStyle);
+		
+		// 儲存原始樣式
+		polyline.originalStyle = { ...lineStyle };
+		
+		// 🔧 新增：添加箭頭標記
+		const arrowMarkers = addArrowsToPolyline(polyline, categoryInfo.color);
+		
+		// 加入點選事件 - 高亮功能
+		polyline.on('click', function(e) {
+			// 重置之前選中的線段
+			if (selectedLine && selectedLine !== polyline) {
+				selectedLine.setStyle(selectedLine.originalStyle);
+				// 重置之前線段的箭頭顏色
+				if (selectedLine.arrowMarkers) {
+					selectedLine.arrowMarkers.forEach(marker => {
+						updateArrowColor(marker, selectedLine.originalStyle.color);
+					});
+				}
+			}
+			
+			// 設定新的選中線段
+			selectedLine = polyline;
+			
+			// 應用高亮樣式
+			const highlightStyle = {
+				color: '#ffff00',  // 黃色高亮
+				weight: 6,
+				opacity: 1.0,
+				dashArray: lineStyle.dashArray  // 保持原有的實線/虛線樣式
+			};
+			
+			polyline.setStyle(highlightStyle);
+			
+			// 高亮箭頭
+			if (arrowMarkers) {
+				arrowMarkers.forEach(marker => {
+					updateArrowColor(marker, '#ffff00');
+				});
+			}
+			
+			// 阻止事件冒泡
+			L.DomEvent.stopPropagation(e);
+			
+			console.log('🎯 線段已高亮:', props.FromID, '->', props.ToID);
+		});
+		
+		// 滑鼠移入效果
+		polyline.on('mouseover', function() {
+			if (selectedLine !== polyline) {
+				const hoverStyle = {
+					...lineStyle,
+					weight: lineStyle.weight + 1,
+					opacity: 1.0
+				};
+				polyline.setStyle(hoverStyle);
+			}
+		});
+		
+		// 滑鼠移出效果
+		polyline.on('mouseout', function() {
+			if (selectedLine !== polyline) {
+				polyline.setStyle(lineStyle);
+			}
+		});
+		
+		// 儲存箭頭標記參考
+		polyline.arrowMarkers = arrowMarkers;
+		
+		// 建立彈出視窗內容（保持原有功能）
+		let popupContent = '<div style="max-width: 320px; font-size: 13px;">';
+		popupContent += `<h4 style="margin: 0 0 10px 0; color: ${categoryInfo.color}; font-size: 14px;">🔗 ${categoryInfo.name}</h4>`;
+		
+		// 顯示主要屬性
+		const importantProps = [
+			{ key: 'FromID', label: '起點設備ID' },
+			{ key: 'ToID', label: '終點設備ID' },
+			{ key: 'FromLoop', label: '起點迴路' },
+			{ key: 'ToLoop', label: '終點迴路' },
+			{ key: 'CabType', label: '線路類型' },
+			{ key: 'OHUG', label: '架設方式' },
+			{ key: 'Visible', label: '可見性' }
+		];
+		
+		importantProps.forEach(prop => {
+			if (props[prop.key] !== undefined && props[prop.key] !== '') {
+				let value = props[prop.key];
+				
+				// 特殊值轉換
+				if (prop.key === 'CabType') {
+					if (value === '0' || value === 0) {
+						value = '主幹線';
+					} else if (value === '1' || value === 1) {
+						value = '分歧線';
+					}
+				} else if (prop.key === 'OHUG') {
+					if (value === '0' || value === 0) {
+						value = '架空';
+					} else if (value === '1' || value === 1) {
+						value = '地下';
+					}
+				} else if (prop.key === 'Visible') {
+					value = value ? '是' : '否';
+				}
+				
+				popupContent += `<p style="margin: 3px 0;"><strong>${prop.label}:</strong> ${value}</p>`;
+			}
+		});
+		
+		// 顯示線段統計
+		const lineLength = calculateLineLength(coordinates);
+		const pointCount = coordinates.length;
+		
+		popupContent += '<hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">';
+		popupContent += `<p style="margin: 3px 0;"><strong>📍 座標點數:</strong> ${pointCount}</p>`;
+		popupContent += `<p style="margin: 3px 0;"><strong>📏 計算長度:</strong> ${lineLength.toFixed(2)} 公尺</p>`;
+		popupContent += `<p style="margin: 3px 0;"><strong>➡️ 電流方向:</strong> ${props.FromID} → ${props.ToID}</p>`;
+		
+		// 顯示起終點座標
+		if (coordinates.length > 0) {
+			const startPoint = coordinates[0];
+			const endPoint = coordinates[coordinates.length - 1];
+			popupContent += `<p style="margin: 3px 0; font-size: 11px; color: #666;"><strong>起點:</strong> ${startPoint[0].toFixed(6)}, ${startPoint[1].toFixed(6)}</p>`;
+			popupContent += `<p style="margin: 3px 0; font-size: 11px; color: #666;"><strong>終點:</strong> ${endPoint[0].toFixed(6)}, ${endPoint[1].toFixed(6)}</p>`;
+		}
+		
+		popupContent += '<hr style="margin: 5px 0; border: none; border-top: 1px solid #eee;">';
+		popupContent += '</div>';
+		
+		polyline.bindPopup(popupContent);
+		
+		return polyline;
+	}
+	// 為線段添加箭頭標記 - 效能優化版
+	// 為線段添加箭頭標記 - 修正版（不直接顯示）
+	function addArrowsToPolyline(polyline, color) {
+		const coordinates = polyline.getLatLngs();
+		const arrowMarkers = [];
+		
+		// 🔧 效能優化：根據地圖縮放等級調整密度
+		const currentZoom = map.getZoom();
+		let arrowInterval;
+		
+		if (currentZoom >= 16) {
+			arrowInterval = 25;
+		} else if (currentZoom >= 14) {
+			arrowInterval = 50;
+		} else {
+			arrowInterval = 100;
+		}
+		
+		const totalLength = calculatePolylineLength(coordinates);
+		const maxArrows = 10;
+		const calculatedInterval = Math.max(arrowInterval, totalLength / maxArrows);
+		
+		let currentDistance = 0;
+		let nextArrowDistance = calculatedInterval / 2;
+		let arrowCount = 0;
+		
+		for (let i = 1; i < coordinates.length && arrowCount < maxArrows; i++) {
+			const segmentLength = coordinates[i-1].distanceTo(coordinates[i]);
+			
+			while (currentDistance + segmentLength >= nextArrowDistance && arrowCount < maxArrows) {
+				const ratio = (nextArrowDistance - currentDistance) / segmentLength;
+				const arrowPosition = interpolateLatLng(coordinates[i-1], coordinates[i], ratio);
+				const bearing = calculateBearing(coordinates[i-1], coordinates[i]);
+				
+				const arrowMarker = createArrowMarkerOptimized(arrowPosition, bearing, color);
+				arrowMarkers.push(arrowMarker);
+				
+				// 🔧 修正：不直接添加到地圖，只創建箭頭物件
+				// 讓 toggleLayer 函數來控制是否顯示
+				// arrowLayerGroup.addLayer(arrowMarker); // 移除這行
+				
+				nextArrowDistance += calculatedInterval;
+				arrowCount++;
+			}
+			
+			currentDistance += segmentLength;
+		}
+		
+		return arrowMarkers;
+	}
+		// 🔧 效能優化版箭頭創建 - 放大1.5倍
+		function createArrowMarkerOptimized(position, bearing, color) {
+			// 🔧 修改：箭頭尺寸放大1.5倍（從 3px/6px 改為 4.5px/9px）
+			const arrowIcon = L.divIcon({
+				html: `<div style="width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-bottom:9px solid ${color};transform:rotate(${bearing}deg);"></div>`,
+				className: 'arrow-icon',
+				iconSize: [18, 18],        // 🔧 從 [6, 6] 改為 [9, 9]
+				iconAnchor: [9, 18]     // 🔧 從 [3, 6] 改為 [4.5, 9]
+			});
+			
+			// 🔧 效能優化：禁用不必要的互動
+			return L.marker(position, { 
+				icon: arrowIcon,
+				interactive: false  // 禁用點選事件提升效能
+			});
+		}
+	// 🔧 效能優化版箭頭創建
+	function createArrowMarkerOptimized(position, bearing, color) {
+		// 簡化的箭頭 HTML - 減少 DOM 複雜度
+		const arrowIcon = L.divIcon({
+			html: `<div style="width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-bottom:6px solid ${color};transform:rotate(${bearing}deg);"></div>`,
+			className: 'arrow-icon',
+			iconSize: [6, 6],
+			iconAnchor: [3, 6]
+		});
+		
+		// 🔧 效能優化：禁用不必要的互動
+		return L.marker(position, { 
+			icon: arrowIcon,
+			interactive: false  // 禁用點選事件提升效能
+		});
+	}
+		 
+	// 計算線段總長度（使用 Leaflet 的 distanceTo 方法）
+	function calculatePolylineLength(coordinates) {
+		let totalLength = 0;
+		for (let i = 1; i < coordinates.length; i++) {
+			totalLength += coordinates[i-1].distanceTo(coordinates[i]);
+		}
+		return totalLength;
+	}
+			  
+	// 在兩點間插值計算位置
+	function interpolateLatLng(latlng1, latlng2, ratio) {
+		const lat = latlng1.lat + (latlng2.lat - latlng1.lat) * ratio;
+		const lng = latlng1.lng + (latlng2.lng - latlng1.lng) * ratio;
+		return L.latLng(lat, lng);
+	}
+
+	// 計算兩點間的方位角
+	function calculateBearing(latlng1, latlng2) {
+		const lat1 = latlng1.lat * Math.PI / 180;
+		const lat2 = latlng2.lat * Math.PI / 180;
+		const deltaLng = (latlng2.lng - latlng1.lng) * Math.PI / 180;
+		
+		const x = Math.sin(deltaLng) * Math.cos(lat2);
+		const y = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLng);
+		
+		const bearing = Math.atan2(x, y) * 180 / Math.PI;
+		return (bearing + 360) % 360; // 確保結果為正值
+	}
+
+	// 創建箭頭標記
+	function createArrowMarker(position, bearing, color) {
+		const arrowIcon = L.divIcon({
+			html: `<div class="arrow-marker" style="border-bottom-color: ${color}; transform: rotate(${bearing}deg);"></div>`,
+			className: 'arrow-icon',
+			iconSize: [8, 8],
+			iconAnchor: [4, 8]
+		});
+		
+		return L.marker(position, { icon: arrowIcon });
+	}
+
+	// 更新箭頭顏色
+	function updateArrowColor(marker, color) {
+		const iconElement = marker.getElement();
+		if (iconElement) {
+			const arrowDiv = iconElement.querySelector('.arrow-marker');
+			if (arrowDiv) {
+				arrowDiv.style.borderBottomColor = color;
+			}
+		}
+	}
+			  
+			 // 計算線段長度 - 新函數
+				function calculateLineLength(coordinates) {
+					if (!coordinates || coordinates.length < 2) return 0;
+					
+					let totalLength = 0;
+					for (let i = 1; i < coordinates.length; i++) {
+						const lat1 = coordinates[i-1][0];
+						const lng1 = coordinates[i-1][1];
+						const lat2 = coordinates[i][0];
+						const lng2 = coordinates[i][1];
+						
+						// 使用 Haversine 公式計算兩點間距離
+						const distance = getDistanceFromLatLonInM(lat1, lng1, lat2, lng2);
+						totalLength += distance;
+					}
+					
+					return totalLength;
+				}
+	// Haversine 公式計算兩點間距離（公尺）
+	function getDistanceFromLatLonInM(lat1, lon1, lat2, lon2) {
+		const R = 6371000; // 地球半徑（公尺）
+		const dLat = deg2rad(lat2 - lat1);
+		const dLon = deg2rad(lon2 - lon1);
+		const a = 
+			Math.sin(dLat/2) * Math.sin(dLat/2) +
+			Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+			Math.sin(dLon/2) * Math.sin(dLon/2);
+		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+		const d = R * c;
+		return d;
+	}
+			  
+		  function deg2rad(deg) {
+		return deg * (Math.PI/180);
+	}
+			 // 建立標記彈出視窗內容 - 移除動畫效果
+	// 建立標記彈出視窗內容 - 效能優化版（加入 Opposite 星星檢查）
+	function createMarker(deviceData, color) {
+    const coords = deviceData.coordinates;
+    const props = deviceData.properties;
+    
+    // 🌟 檢查是否有 Opposite 參數且 FSC 是 114
+    const hasOpposite = props.FSC === '114' && props.Opposite && props.Opposite.trim() !== '';
+    
+    // 根據 FSC 建立簡化圖標（保留你的原始設計）
+    const iconConfig = getSimpleDeviceIcon(props);
+    
+    // 根據 FSC 動態調整圖標大小
+    let iconSize = [16, 16];
+    let iconAnchor = [8, 8];
+
+    if (props.FSC === '114') {
+        iconSize = [24, 24];
+        iconAnchor = [12, 12];
+    }
+
+    const customIcon = L.divIcon({
+        html: iconConfig.html,
+        className: 'simple-device-icon',
+        iconSize: iconSize,
+        iconAnchor: iconAnchor
+    });
+    
+    const marker = L.marker([coords[1], coords[0]], { icon: customIcon });
+    
+    // 🌟 如果是 FSC 114 且有 Opposite 參數，創建紅色星星標記
+    if (hasOpposite) {
+        console.log(`⭐ 發現 FSC 114 設備有 Opposite 參數: ID=${props.ID}, Opposite=${props.Opposite}`);
+        createOppositeStarMarker([coords[1], coords[0]], props.Opposite);
+    }
+    
+    // 🆕 建立增強版彈出視窗內容（結合原始內容 + Google 功能）
+    let popupContent = '<div style="max-width: 320px; font-size: 13px; font-family: Arial, sans-serif;">';
+    
+    // 🎨 標題區域（保留你的原始設計）
+    popupContent += `<div style="background: linear-gradient(135deg, ${color}, ${adjustColor(color, -20)}); color: white; padding: 12px; margin: -10px -10px 15px -10px; border-radius: 8px 8px 0 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
+    popupContent += `<h3 style="margin: 0; font-size: 16px; font-weight: bold;">🏗️ ${getDeviceTypeName(props.FSC)}</h3>`;
+    popupContent += `<div style="font-size: 12px; opacity: 0.9; margin-top: 4px;">設備ID: ${props.ID || 'N/A'}</div>`;
+    popupContent += `</div>`;
+    
+    popupContent += `<div style="padding: 0 5px;">`;
+    
+    // 🌟 Opposite 資訊顯示（保留你的原始設計）
+    if (hasOpposite) {
+        popupContent += `<div style="background: #ffebee; border: 1px solid #f44336; border-radius: 4px; padding: 8px; margin-bottom: 10px;">`;
+        popupContent += `<p style="margin: 0; font-weight: bold; color: #c62828;"><span style="color: #ff0000;">⭐</span> Opposite: ${props.Opposite}</p>`;
+        popupContent += `</div>`;
+    }
+    
+    // 📊 主要屬性顯示（保留你的原始邏輯）
+    const importantProps = [
+        { key: 'ID', label: '設備ID' },
+        { key: 'Tpclid', label: '台電ID' },
+        { key: 'FSC', label: 'FSC代碼' },
+        { key: 'Area', label: '區域' },
+        { key: 'Feeder', label: '饋線' },
+        { key: 'VLevel', label: '電壓等級' },
+        { key: 'Location', label: '位置' },
+        { key: 'Spec', label: '規格' },
+        { key: 'Length', label: '長度' },
+        { key: 'Type', label: '類型' },
+        { key: 'Phase1', label: '相別1' },
+        { key: 'Phase2', label: '相別2' },
+        { key: 'Phase3', label: '相別3' },
+        { key: 'Capacity1', label: '容量1' },
+        { key: 'Capacity2', label: '容量2' },
+        { key: 'Capacity3', label: '容量3' },
+        { key: 'SupplyType', label: '供電型式' }
+    ];
+    
+    // 顯示重要屬性（保留你的原始處理邏輯）
+    const displayedProps = [];
+    importantProps.forEach(prop => {
+        if (props[prop.key] !== undefined && props[prop.key] !== '' && props[prop.key] !== '0.0') {
+            let value = props[prop.key];
+            
+            // 特殊值處理（保留你的原始邏輯）
+            if (prop.key === 'VLevel') {
+                if (value === '1') value = '11.4kV';
+                else if (value === '2') value = '22.8kV';
+                else if (value === '3') value = '特高壓';
+            } else if (prop.key.includes('Capacity') && value !== '0.0') {
+                value += ' kVA';
+            } else if (prop.key === 'Length' && value !== '0.0') {
+                value += ' 公尺';
+            }
+            
+            displayedProps.push({ label: prop.label, value: value });
+        }
+    });
+    
+    // 用網格顯示屬性
+    if (displayedProps.length > 0) {
+        popupContent += `<div style="display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin-bottom: 12px; font-size: 12px;">`;
+        displayedProps.forEach(prop => {
+            popupContent += `<strong>${prop.label}:</strong><span>${prop.value}</span>`;
+        });
+        popupContent += `</div>`;
+    }
+    
+    // 📍 座標顯示（保留你的原始格式）
+    popupContent += '<hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">';
+    popupContent += `<p style="margin: 3px 0; font-size: 11px; color: #666;"><strong>📍 座標:</strong> ${coords[1].toFixed(6)}, ${coords[0].toFixed(6)}</p>`;
+    
+    // 🔄 迴路資訊顯示（保留你的原始邏輯）
+    if (props.SrcLoop || props.DestLoop) {
+        popupContent += '<hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">';
+        popupContent += '<p style="margin: 5px 0 3px 0; font-weight: bold; color: #2c3e50;">🔄 迴路資訊:</p>';
+        
+        if (props.SrcLoop && props.SrcLoop.Loop) {
+            popupContent += `<p style="margin: 2px 0; font-size: 12px;">來源: ${props.SrcLoop.Loop} (${props.SrcLoop.Name || ''})</p>`;
+        }
+        
+        if (props.DestLoop && Array.isArray(props.DestLoop)) {
+            props.DestLoop.forEach((dest, index) => {
+                if (dest.Loop) {
+                    popupContent += `<p style="margin: 2px 0; font-size: 12px;">目標${index + 1}: ${dest.Loop} (${dest.Name || ''})</p>`;
+                }
+            });
+        }
+    }
+    
+    // 🆕 Google 服務按鈕區域
+    const lat = coords[1];
+    const lng = coords[0];
+    const deviceName = props.Name || props.ID || '設備位置';
+    
+    popupContent += '<hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">';
+    popupContent += `<div style="margin-top: 12px;">`;
+    popupContent += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">`;
+    
+    // 街景圖按鈕
+    popupContent += `<button onclick="openStreetView(${lat}, ${lng})" 
+                            style="background: linear-gradient(135deg, #4285f4, #34a853); 
+                                   color: white; border: none; padding: 8px 6px; 
+                                   border-radius: 6px; cursor: pointer; font-size: 11px; 
+                                   font-weight: bold; transition: all 0.2s;
+                                   box-shadow: 0 2px 4px rgba(66, 133, 244, 0.3);"
+                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(66, 133, 244, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(66, 133, 244, 0.3)';">
+                        🗺️ 街景圖
+                    </button>`;
+    
+    // 導航按鈕
+    popupContent += `<button onclick="openNavigation(${lat}, ${lng}, '${encodeURIComponent(deviceName)}')" 
+                            style="background: linear-gradient(135deg, #ea4335, #fbbc04); 
+                                   color: white; border: none; padding: 8px 6px; 
+                                   border-radius: 6px; cursor: pointer; font-size: 11px; 
+                                   font-weight: bold; transition: all 0.2s;
+                                   box-shadow: 0 2px 4px rgba(234, 67, 53, 0.3);"
+                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(234, 67, 53, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(234, 67, 53, 0.3)';">
+                        🧭 導航
+                    </button>`;
+    
+    popupContent += `</div>`;
+    
+    // 複製座標按鈕
+    popupContent += `<button onclick="copyCoordinates(${lat}, ${lng})" 
+                            style="width: 100%; background: #6c757d; 
+                                   color: white; border: none; padding: 6px; 
+                                   border-radius: 4px; cursor: pointer; font-size: 10px;
+                                   transition: all 0.2s;"
+                            onmouseover="this.style.background='#5a6268';"
+                            onmouseout="this.style.background='#6c757d';">
+                        📋 複製座標
+                    </button>`;
+    
+    popupContent += `</div>`;
+    popupContent += `</div>`;
+    popupContent += '</div>';
+    
+    marker.bindPopup(popupContent, {
+        maxWidth: 350,
+        className: 'custom-popup'
+    });
+    
+    return marker;
+}
+// 🆕 開啟 Google 街景圖
+function openStreetView(lat, lng) {
+    const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+    window.open(streetViewUrl, '_blank');
+    console.log(`🗺️ 開啟街景圖: ${lat}, ${lng}`);
+}
+
+// 🆕 開啟 Google 導航
+function openNavigation(lat, lng, name) {
+    // 嘗試多種導航方式，優先使用 Google Maps
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${encodeURIComponent(name)}`;
+    
+    // 檢測是否為行動裝置
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+        // 行動裝置優先嘗試開啟 Google Maps App
+        const appUrl = `google.navigation:q=${lat},${lng}`;
+        const fallbackUrl = googleMapsUrl;
+        
+        // 嘗試開啟 App，失敗則開啟網頁版
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = appUrl;
+        document.body.appendChild(iframe);
+        
+        setTimeout(() => {
+            document.body.removeChild(iframe);
+            window.open(fallbackUrl, '_blank');
+        }, 1000);
+    } else {
+        // 桌面版直接開啟網頁版 Google Maps
+        window.open(googleMapsUrl, '_blank');
+    }
+    
+    console.log(`🧭 開啟導航至: ${name} (${lat}, ${lng})`);
+}
+
+// 🆕 複製座標到剪貼簿
+function copyCoordinates(lat, lng) {
+    const coordinates = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    
+    if (navigator.clipboard && window.isSecureContext) {
+        // 現代瀏覽器的剪貼簿 API
+        navigator.clipboard.writeText(coordinates).then(() => {
+            showToast(`📋 座標已複製: ${coordinates}`, 'success');
+        }).catch(err => {
+            console.error('複製失敗:', err);
+            fallbackCopyText(coordinates);
+        });
+    } else {
+        // 舊版瀏覽器的備用方法
+        fallbackCopyText(coordinates);
+    }
+}
+
+// 🆕 備用複製方法
+function fallbackCopyText(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
+        showToast(`📋 座標已複製: ${text}`, 'success');
+    } catch (err) {
+        console.error('複製失敗:', err);
+        showToast('❌ 複製失敗，請手動複製', 'error');
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+// 🆕 顯示提示訊息
+function showToast(message, type = 'info') {
+    // 移除現有的提示
+    const existingToast = document.getElementById('toast-message');
+    if (existingToast) {
+        existingToast.remove();
+    }
+    
+    // 建立新提示
+    const toast = document.createElement('div');
+    toast.id = 'toast-message';
+    toast.textContent = message;
+    
+    const bgColor = type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8';
+    
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${bgColor};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10000;
+        font-size: 14px;
+        font-weight: 500;
+        max-width: 300px;
+        word-wrap: break-word;
+        animation: slideIn 0.3s ease-out;
+    `;
+    
+    // 加入滑入動畫
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    document.body.appendChild(toast);
+    
+    // 3秒後自動移除
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.style.animation = 'slideIn 0.3s ease-out reverse';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 3000);
+}
+
+// 🆕 顏色調整輔助函數
+function adjustColor(color, percent) {
+    const num = parseInt(color.replace("#", ""), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = (num >> 16) + amt;
+    const G = (num >> 8 & 0x00FF) + amt;
+    const B = (num & 0x0000FF) + amt;
+    
+    return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+        (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+        (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
+}
+
+	// 🌟 修改：創建 Opposite 紅色星星標記 - 調整垂直位置避免遮擋開關
+	function createOppositeStarMarker(position, oppositeText) {
+		console.log(`⭐ 創建 Opposite 紅色星星標記: ${oppositeText} at`, position);
+		
+		const starIcon = L.divIcon({
+			html: `
+				<div class="opposite-star-marker">
+					<div class="star-icon">⭐</div>
+					<div class="opposite-text">${oppositeText}</div>
+				</div>
+			`,
+			className: 'opposite-star-icon',
+			iconSize: [60, 25],   
+			iconAnchor: [8, 35]   // 🔧 修改：從 [8, 20] 改為 [8, 35]，讓星星往上偏移更多
+		});
+		
+		const starMarker = L.marker(position, { 
+			icon: starIcon,
+			zIndexOffset: 1000  // 確保星星顯示在最上層
+		});
+		
+		// 加入到星星圖層群組
+		oppositeLayerGroup.addLayer(starMarker);
+		
+		// 加入到全域星星陣列
+		oppositeStarMarkers.push(starMarker);
+		
+		// 加入點選事件顯示詳細資訊
+		starMarker.on('click', function(e) {
+			const popup = L.popup()
+				.setLatLng(position)
+				.setContent(`
+					<div style="text-align: center; padding: 5px;">
+						<h4 style="margin: 0 0 5px 0; color: #ff0000;">⭐ Opposite 標記</h4>
+						<p style="margin: 0; font-weight: bold; color: #c62828;">${oppositeText}</p>
+						<p style="margin: 5px 0 0 0; font-size: 11px; color: #666;">FSC 114 開關設備</p>
+					</div>
+				`)
+				.openOn(map);
+			
+			// 阻止事件冒泡
+			L.DomEvent.stopPropagation(e);
+		});
+		
+		return starMarker;
+	}
+	// 簡化設備圖標 - 效能優化版
+	function getSimpleDeviceIcon(props) {
+		const fsc = props.FSC || props.fsc || '';
+		const baseStyle = `
+			width: 12px; 
+			height: 12px; 
+			display: flex; 
+			align-items: center; 
+			justify-content: center; 
+			font-size: 8px; 
+			font-weight: bold;
+			border: 1px solid white;
+			box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+		`;
+		
+		switch (fsc) {
+			case '120': // 接地設備 - 圓圈 + 45度斜線
+				return {
+					html: `<div style="${baseStyle} 
+						background-color: #2c3e50; 
+						border-radius: 50%;
+						position: relative;
+					">
+						<div style="
+							position: absolute;
+							width: 10px;
+							height: 1px;
+							background-color: white;
+							transform: rotate(45deg);
+							top: 50%;
+							left: 50%;
+							margin-left: -5px;
+							margin-top: -0.5px;
+						"></div>
+					</div>`
+				};
+				
+			case '114': // 開關設備 - 🔧 調整圈圈大小
+				const switchType = getSwitchType(props);
+				return {
+					html: `<div style="
+						width: 20px; 
+						height: 20px; 
+						display: flex; 
+						align-items: center; 
+						justify-content: center; 
+						font-size: 12px; 
+						font-weight: bold;
+						border: 2px solid white;
+						box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+						background-color: #27ae60; 
+						border-radius: 50%;
+						color: white;
+					">${switchType}</div>`
+				};
+
+				
+			case '115': // 變壓器 - 三角形 (放大1.5倍)
+				return {
+					html: `<div style="
+						width: 0;
+						height: 0;
+						border-left: 9px solid transparent;
+						border-right: 9px solid transparent;
+						border-bottom: 15px solid #3498db;
+						filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4));
+					"></div>`
+				};
+
+				
+			case '106': // 電桿設備 - 深灰色小圓點
+				return {
+					html: `<div style="
+						width: 6px; 
+						height: 6px; 
+						background-color: #34495e; 
+						border-radius: 50%;
+						border: 1px solid white;
+						box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+					"></div>`
+				};
+
+			case '108': // 電纜頭 - 大方形 + "變"字
+				return {
+					html: `<div style="
+						width: 20px; 
+						height: 20px; 
+						background-color: #f39c12; 
+						border-radius: 3px;
+						border: 2px solid white;
+						box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						font-size: 12px;
+						font-weight: bold;
+						color: white;
+						text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+					">變</div>`
+				};
+
+				
+			case '109': // 電桿標示 - 菱形
+				return {
+					html: `<div style="
+						width: 8px;
+						height: 8px;
+						background-color: #9b59b6;
+						transform: rotate(45deg);
+						border: 1px solid white;
+						box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+					"></div>`
+				};
+				
+			case '110': // 太陽能設備 - 斜放太陽能板
+				return {
+					html: `<div style="
+						width: 12px;
+						height: 8px;
+						background: linear-gradient(135deg, #3498db 0%, #2980b9 50%, #1f4e79 100%);
+						transform: rotate(-15deg) skewX(-10deg);
+						border: 1px solid white;
+						box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+						position: relative;
+					">
+						<div style="
+							position: absolute;
+							top: 1px;
+							left: 1px;
+							right: 1px;
+							height: 1px;
+							background-color: rgba(255,255,255,0.4);
+						"></div>
+						<div style="
+							position: absolute;
+							top: 4px;
+							left: 1px;
+							right: 1px;
+							height: 1px;
+							background-color: rgba(255,255,255,0.2);
+						"></div>
+					</div>`
+				};
+
+				
+			case '116': // 電桿設備 - 圓點（不同顏色）
+				return {
+					html: `<div style="${baseStyle} 
+						background-color: #8b4513; 
+						border-radius: 50%;
+					"></div>`
+				};
+				
+			case '131': // 其他設備 - 八角形
+				return {
+					html: `<div style="
+						width: 10px;
+						height: 10px;
+						background-color: #8e44ad;
+						clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+						border: 1px solid white;
+						box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+					"></div>`
+				};
+				
+			default: // 未知設備 - 簡單圓點
+				return {
+					html: `<div style="${baseStyle} 
+						background-color: #95a5a6; 
+						border-radius: 50%;
+					"></div>`
+				};
+		}
+	}
+
+	// 🔧 修正：判斷開關類型 - 根據設備屬性返回正確英文字母
+	function getSwitchType(props) {
+		console.log('🔍 判斷開關類型，設備屬性:', props);
+		
+		// 根據設備屬性判斷開關類型
+		const auto = props.Auto;
+		const fuse = props.Fuse;
+		const no = props.NO;
+		const type = props.Type || '';
+		const spec = props.Spec || '';
+		const swtype = props.SrcLoop ? props.SrcLoop.Type : undefined;
+		
+		console.log(`🔍 開關屬性分析: Auto=${auto}, Fuse=${fuse}, NO=${no}, Type="${type}", Spec="${spec}"`);
+		console.log(swtype);
+		
+		// 🔧 修正：判斷邏輯並返回對應英文字母
+		if (fuse === true || fuse === '1' || fuse === 1 || type.includes('熔絲') || spec.includes('FUSE')) {
+			console.log('✅ 判斷為熔絲 (F)');
+			return 'F'; // 熔絲 (Fuse)
+		} else if (auto === true || auto === '1' || auto === 1 || type.includes('自動') || spec.includes('AUTO')) {
+			console.log('✅ 判斷為自動化開關 (A)');
+			return 'A'; // 自動化開關 (Automatic)
+		} else if (no === true || no === '1' || no === 1 || type.includes('分段') || spec.includes('SECT') || spec.includes('DISCONNECT') || swtype === 2 ||swtype ==='2') {
+			console.log('✅ 判斷為分段開關 (D)');
+			return 'D'; // 分段開關 (Disconnector)
+		} else if (type.includes('氣封') || spec.includes('SECTIONALIZER') || spec.includes('氣封')) {
+			console.log('✅ 判斷為氣封開關 (S)');
+			return 'S'; // 氣封開關 (Sectionalizer)
+		} else {
+			console.log('⚠️ 未知開關類型，使用預設 (S)');
+			return 'S'; // 預設為氣封開關 (Switch/Sectionalizer)
+		}
+	}
+
+
+	// 取得設備圖標
+	function getDeviceIcon(fsc) {
+		const icons = {
+			'106': '🔌',  // 線路節點
+			'108': '🔗',  // 變電所
+			'109': '🏷️',  // 電桿標示
+			'110': '☀️',  // 太陽能設備
+			'114': '🔄',  // 開關設備
+			'115': '⚡',  // 變壓器
+			'116': '🔌',  // 電桿設備
+			'120': '🌍',  // 接地設備
+			'131': '❓'   // 其他設備
+		};
+		return icons[fsc] || '●';
+	}
+
+	// 取得設備類型名稱
+	function getDeviceTypeName(fsc) {
+		const names = {
+			'106': '線路節點',
+			'108': '變電所',
+			'109': '電桿標示',
+			'110': '太陽能設備',
+			'114': '開關設備',
+			'115': '變壓器',
+			'116': '電桿設備',
+			'120': '電桿設備',
+			'131': '其他設備'
+		};
+		return names[fsc] || '未知設備';
+	}
+			  
+	function toggleLayer(categoryKey) {
+    const checkbox = document.getElementById(`layer_${categoryKey}`);
+    const layerGroup = layerGroups[categoryKey];
+    
+    if (!layerGroup) return;
+    
+    if (checkbox.checked) {
+        map.addLayer(layerGroup);
+        
+        // 🔧 修正：顯示該圖層中所有線段的箭頭
+        layerGroup.eachLayer(layer => {
+            if (layer.arrowMarkers && Array.isArray(layer.arrowMarkers)) {
+                layer.arrowMarkers.forEach(marker => {
+                    arrowLayerGroup.addLayer(marker); // 添加到箭頭圖層群組
+                });
+            }
+        });
+    } else {
+        map.removeLayer(layerGroup);
+        
+        // 🔧 修正：隱藏該圖層中所有線段的箭頭
+        layerGroup.eachLayer(layer => {
+            if (layer.arrowMarkers && Array.isArray(layer.arrowMarkers)) {
+                layer.arrowMarkers.forEach(marker => {
+                    arrowLayerGroup.removeLayer(marker); // 從箭頭圖層群組移除
+                });
+            }
+        });
+    }
+}
+			  
+			// 清除所有圖層 - 完全修改版（加入星星清除）
+			function clearAllLayers() {
+				console.log('🧹 開始清除所有圖層、箭頭和星星...');
+				
+				// 清除現有圖層
+				Object.values(layerGroups).forEach(layerGroup => {
+					if (map.hasLayer(layerGroup)) {
+						map.removeLayer(layerGroup);
+					}
+				});
+				
+				// 🔧 重要：清除所有箭頭標記
+				clearAllArrows();
+				
+				// 🌟 新增：清除所有星星標記
+				clearAllOppositeStars();
+				
+				// 重置變數
+				layerGroups = {};
+				selectedLine = null;
+				
+				console.log('✅ 所有圖層、箭頭和星星已清除');
+			}
+			
+			// 🌟 新增：專門清除星星的函數
+	function clearAllOppositeStars() {
+		console.log(`🧹 清除 ${oppositeStarMarkers.length} 個星星標記...`);
+		
+		// 方法1：從圖層群組清除（效能較好）
+		if (oppositeLayerGroup) {
+			oppositeLayerGroup.clearLayers();
+		}
+		
+		// 方法2：逐一清除（備用方案）
+		oppositeStarMarkers.forEach(marker => {
+			if (map.hasLayer(marker)) {
+				map.removeLayer(marker);
+			}
+		});
+		
+		// 重置星星陣列
+		oppositeStarMarkers = [];
+		
+		console.log('✅ 所有星星已清除');
+	}
+			
+			// 🔧 新增：專門清除箭頭的函數
+	function clearAllArrows() {
+		console.log(`🧹 清除 ${allArrowMarkers.length} 個箭頭標記...`);
+		
+		// 方法1：從圖層群組清除（效能較好）
+		if (arrowLayerGroup) {
+			arrowLayerGroup.clearLayers();
+		}
+		
+		// 方法2：逐一清除（備用方案）
+		allArrowMarkers.forEach(marker => {
+			if (map.hasLayer(marker)) {
+				map.removeLayer(marker);
+			}
+		});
+		
+		// 重置箭頭陣列
+		allArrowMarkers = [];
+		
+		console.log('✅ 所有箭頭已清除');
+	}
+			  
+			  // 自動縮放到資料範圍
+			  function fitMapToData() {
+				  const bounds = L.latLngBounds();
+				  let hasData = false;
+				  
+				  // 加入點設備範圍
+				  allDevicesData.forEach(device => {
+					  const [lng, lat] = device.coordinates;
+					  bounds.extend([lat, lng]);
+					  hasData = true;
+				  });
+				  
+				  // 加入線段範圍
+				  allLinesData.forEach(line => {
+					  line.coordinates.forEach(coord => {
+						  bounds.extend(coord);
+						  hasData = true;
+					  });
+				  });
+				  
+				  if (hasData) {
+					  // 加入一些邊界填充
+					  map.fitBounds(bounds, { padding: [20, 20] });
+				  }
+			  }
+			  
+			  // 頁面載入完成後初始化地圖
+			  document.addEventListener('DOMContentLoaded', function() {
+				  initMap();
+			  });
+			  
+			  
+// 🆕 修改後的初始化下拉選單函數
+function initializeFeederDropdown() {
+    const dropdown = document.getElementById('feederDropdown');
+    
+    // 清空現有選項
+    dropdown.innerHTML = '<option value="">選擇饋線</option>';
+    
+    feederList.forEach(feeder => {
+        const option = document.createElement('option');
+        option.value = feeder;
+        option.textContent = feeder;
+        dropdown.appendChild(option);
+    });
+    
+    // 監聽下拉選單變化
+    dropdown.addEventListener('change', function() {
+        const selectedFeeder = this.value;
+        const inputField = document.getElementById('feederInput');
+        if (selectedFeeder) {
+            inputField.value = selectedFeeder;
+        }
+    });
+    
+    // 監聽輸入框變化
+    const inputField = document.getElementById('feederInput');
+    inputField.addEventListener('input', function() {
+        const inputValue = this.value.toUpperCase();
+        dropdown.value = feederList.includes(inputValue) ? inputValue : '';
+    });
+    
+    console.log(`✅ 下拉選單已初始化，包含 ${feederList.length} 個饋線`);
+}
+
+
+// 🆕 從雲端載入饋線資料
+// 🔧 修正：從雲端載入饋線資料 - 改善 UI 反饋
+// 🔧 修正版：載入函數中加入更好的錯誤處理
+async function loadFeederFromCloud() {
+    const feederInput = document.getElementById('feederInput');
+    const feederName = feederInput.value.trim().toUpperCase();
+    const loadBtn = document.querySelector('.load-feeder-btn');
+    const section = document.querySelector('.feeder-selection-section');
+    
+    if (!feederName) {
+        showToast('請輸入饋線名稱或從下拉選單選擇！', 'error');
+        feederInput.focus();
+        return;
+    }
+    
+    if (!feederList.includes(feederName)) {
+        showToast(`找不到饋線 "${feederName}"，請檢查名稱是否正確！`, 'error');
+        feederInput.focus();
+        return;
+    }
+    
+    const fileName = `119_${feederName}.json`;
+    
+    try {
+        // 1. 檢查本地儲存
+        let jsonData = localStorageManager.loadFromLocal(fileName);
+        if (jsonData) {
+            await processJsonDataAsync(jsonData, fileName);
+            showToast('⚡ 瞬間載入！(本地)', 'success');
+            return;
+        }
+        
+        // 2. 檢查記憶體快取
+        jsonData = feederCache.get(fileName);
+        if (jsonData) {
+            await processJsonDataAsync(jsonData, fileName);
+            showToast('⚡ 快速載入！(快取)', 'success');
+            return;
+        }
+        
+        // 3. 從雲端載入
+        loadBtn.disabled = true;
+        loadBtn.textContent = '⚡ 饋線載入中...';
+        section.classList.add('loading');
+        
+        const startTime = Date.now();
+        updateProgress(0, '準備載入...');
+        
+        // 🔧 修正：檢查檔案 ID 是否存在
+        let fileId;
+        try {
+            fileId = getFileIdByName(fileName);
+        } catch (error) {
+            throw new Error(`找不到檔案 ${fileName}：${error.message}`);
+        }
+        
+        const bestUrl = await getBestDownloadUrl(fileId);
+        
+        updateProgress(10, '建立連線...');
+        
+        // 🔧 修正：加入更詳細的錯誤處理
+        try {
+            jsonData = await fastJsonLoader.loadJsonWithStream(bestUrl, (percent, text) => {
+                updateProgress(10 + (percent * 0.7), text);
+            });
+        } catch (loadError) {
+            console.error('載入錯誤詳情:', loadError);
+            
+            if (loadError.message.includes('HTML')) {
+                throw new Error('Google Drive 檔案無法直接存取，請檢查檔案權限設定');
+            } else if (loadError.message.includes('HTTP 404')) {
+                throw new Error(`檔案不存在或已被刪除：${fileName}`);
+            } else if (loadError.message.includes('HTTP 403')) {
+                throw new Error(`檔案存取權限不足：${fileName}`);
+            } else {
+                throw new Error(`載入失敗：${loadError.message}`);
+            }
+        }
+        
+        updateProgress(85, '處理資料...');
+        
+        // 4. 儲存到快取和本地
+        feederCache.set(fileName, jsonData);
+        await localStorageManager.saveToLocal(fileName, jsonData);
+        
+        updateProgress(95, '渲染地圖...');
+        
+        // 5. 處理資料
+        await processJsonDataAsync(jsonData, fileName);
+        
+        updateProgress(100, '載入完成！');
+        
+        const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log(`🎉 饋線載入完成: ${loadTime}秒`);
+        
+        section.classList.add('success');
+        showToast(`🚀 載入完成！(${loadTime}秒)`, 'success');
+        
+        // 背景預載入
+        setTimeout(() => preloadAdjacentFeeders(feederName), 1000);
+        
+    } catch (error) {
+        console.error('❌ 饋線載入失敗:', error);
+        section.classList.add('error');
+        updateProgress(0, '載入失敗');
+        showToast(`載入失敗: ${error.message}`, 'error');
+        
+    } finally {
+        loadBtn.disabled = false;
+        loadBtn.textContent = '⚡ 載入饋線';
+        section.classList.remove('loading');
+        
+        setTimeout(() => {
+            section.classList.remove('success', 'error');
+        }, 3000);
+    }
+}
+// 🆕 智慧預載入相鄰饋線
+async function preloadAdjacentFeeders(currentFeeder) {
+    console.log(`🔮 開始預載入 ${currentFeeder} 的相鄰饋線...`);
+    
+    const adjacentFeeders = getAdjacentFeeders(currentFeeder);
+    const maxPreload = 3;
+    const feedersToPreload = adjacentFeeders.slice(0, maxPreload);
+    
+    console.log(`📋 預載入清單: ${feedersToPreload.join(', ')}`);
+    
+    feedersToPreload.forEach(async (feeder, index) => {
+        try {
+            await new Promise(resolve => setTimeout(resolve, index * 1000));
+            
+            const fileName = `119_${feeder}.json`;
+            
+            if (feederCache.get(fileName)) {
+                console.log(`⚡ ${feeder} 已在快取中，跳過預載入`);
+                return;
+            }
+            
+            console.log(`🔮 預載入: ${feeder}`);
+            const fileId = getFileIdByName(fileName);
+            const bestUrl = await getBestDownloadUrl(fileId);
+            const jsonData = await fastJsonLoader.loadJsonWithStream(bestUrl);
+            feederCache.set(fileName, jsonData);
+            console.log(`✅ 預載入完成: ${feeder}`);
+            
+        } catch (error) {
+            console.log(`⚠️ 預載入失敗: ${feeder} -`, error.message);
+        }
+    });
+}
+
+// 🆕 取得相鄰饋線
+function getAdjacentFeeders(currentFeeder) {
+    const adjacent = [];
+    
+    const match = currentFeeder.match(/^(\d+[A-Z]+)(\d+)$/);
+    if (!match) return adjacent;
+    
+    const prefix = match[1];
+    const number = parseInt(match[2]);
+    
+    for (let offset = -2; offset <= 2; offset++) {
+        if (offset === 0) continue;
+        
+        const adjacentNumber = number + offset;
+        if (adjacentNumber < 1 || adjacentNumber > 99) continue;
+        
+        const adjacentFeeder = `${prefix}${adjacentNumber.toString().padStart(2, '0')}`;
+        
+        if (feederList.includes(adjacentFeeder)) {
+            adjacent.push(adjacentFeeder);
+        }
+    }
+    
+    return adjacent;
+}
+
+
+// 🆕 檔案名稱對應到 Google Drive 檔案 ID
+// 🆕 修改後的 getFileIdByName 函數
+function getFileIdByName(fileName) {
+    const fileId = feederDataMap[fileName];
+    if (!fileId) {
+        throw new Error(`找不到檔案 ${fileName} 的 Google Drive ID`);
+    }
+    return fileId;
+}
+
+// 🆕 從 Google Sheet JSON API 載入饋線資料
+async function loadFeederDataFromSheet() {
+    // 🔧 替換為您的 GAS Web App URL
+    const gasWebAppUrl = 'https://script.google.com/macros/s/AKfycby6Bx8OuXitOT-6vWxBcOUrvHgWGQIK_DO9F_Db-10uEwKPjw-Hqd8ka5MvTq3Hh68/exec';
+    
+    try {
+        console.log('🔄 正在從 JSON API 載入饋線資料...');
+        
+        const response = await fetch(`${gasWebAppUrl}?action=getFeederData&_t=${Date.now()}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            feederDataMap = result.data.feederMap;
+            feederList = result.data.feederList;
+            
+            console.log(`✅ 成功載入 ${result.data.count} 個饋線資料`);
+            console.log('📋 饋線清單:', feederList);
+            console.log('🕒 最後更新:', result.data.lastUpdate);
+            
+            // 初始化下拉選單
+            initializeFeederDropdown();
+            
+            // 更新狀態顯示
+            updateLoadStatus(`✅ 已載入 ${result.data.count} 個饋線資料 (${new Date(result.data.lastUpdate).toLocaleString('zh-TW')})`);
+            
+            return true;
+        } else {
+            throw new Error(result.error || '載入失敗');
+        }
+        
+    } catch (error) {
+        console.error('❌ 載入饋線資料失敗:', error);
+        
+        // 🔄 使用備用的靜態清單
+        console.log('🔄 使用備用饋線清單...');
+        feederList = [
+            '6A22', '6A23', '6A24', '6A25', '6A31', '6A32', '6A33', '6A34', '6A35',
+            '6A41', '6A42', '6A43', '6A44', '6A45', '6A51', '6A52', '6A53', '6A54'
+            // ... 其他饋線名稱
+        ];
+        
+        // 建立備用的檔案 ID 對應表（如果有的話）
+        feederDataMap = {};
+        feederList.forEach(feeder => {
+            feederDataMap[`119_${feeder}.json`] = 'backup_file_id'; // 這裡需要實際的檔案 ID
+        });
+        
+        initializeFeederDropdown();
+        updateLoadStatus(`⚠️ 使用備用清單 (${feederList.length} 個饋線)`);
+        
+        return false;
+    }
+}
+// 🆕 新增：檢查 API 健康狀態
+async function checkAPIHealth() {
+    const gasWebAppUrl = 'https://script.google.com/macros/s/您的GAS_DEPLOYMENT_ID/exec';
+    
+    try {
+        const response = await fetch(`${gasWebAppUrl}?action=health`);
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('✅ API 健康狀態良好:', result.data);
+            return true;
+        } else {
+            console.warn('⚠️ API 健康檢查失敗:', result.error);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ API 健康檢查錯誤:', error);
+        return false;
+    }
+}
+
+// 🆕 建立進度條
+function createProgressBar() {
+    const progressHtml = `
+        <div id="loadProgress" style="display: none; margin: 10px 0;">
+            <div style="background: #e9ecef; border-radius: 10px; overflow: hidden; height: 8px;">
+                <div id="progressBar" style="background: linear-gradient(90deg, #28a745, #20c997); 
+                     height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+            </div>
+            <div id="progressText" style="text-align: center; font-size: 12px; color: #666; margin-top: 4px;">
+                載入中...
+            </div>
+        </div>
+    `;
+    
+    const section = document.querySelector('.feeder-selection-section');
+    if (section && !document.getElementById('loadProgress')) {
+        section.insertAdjacentHTML('beforeend', progressHtml);
+    }
+}
+
+// 🆕 更新進度
+function updateProgress(percent, text) {
+    const progressDiv = document.getElementById('loadProgress');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    
+    if (progressDiv && progressBar && progressText) {
+        progressDiv.style.display = 'block';
+        progressBar.style.width = `${percent}%`;
+        progressText.textContent = text;
+        
+        if (percent >= 100) {
+            setTimeout(() => {
+                progressDiv.style.display = 'none';
+            }, 1000);
+        }
+    }
+}
+// 🆕 取得最佳下載 URL
+// 🔧 修正版：取得最佳下載 URL
+async function getBestDownloadUrl(fileId) {
+    // 🆕 使用 GAS 作為代理伺服器
+    const gasWebAppUrl = 'https://script.google.com/macros/s/AKfycby6Bx8OuXitOT-6vWxBcOUrvHgWGQIK_DO9F_Db-10uEwKPjw-Hqd8ka5MvTq3Hh68/exec';
+    
+    const proxyUrl = `${gasWebAppUrl}?action=getFileContent&fileId=${fileId}`;
+    
+    console.log(`🎯 使用 GAS 代理載入: ${fileId}`);
+    return proxyUrl;
+}
+
+// 🆕 非同步處理 JSON 資料
+async function processJsonDataAsync(jsonData, fileName) {
+    return new Promise((resolve) => {
+        const processChunk = (deadline) => {
+            const startTime = performance.now();
+            
+            try {
+                processJsonData(jsonData, fileName);
+                resolve();
+            } catch (error) {
+                if (performance.now() - startTime > 16) {
+                    console.log('🔄 分割處理大型資料...');
+                    setTimeout(() => processChunk({ timeRemaining: () => 50 }), 0);
+                } else {
+                    throw error;
+                }
+            }
+        };
+        
+        if (window.requestIdleCallback) {
+            requestIdleCallback(processChunk);
+        } else {
+            setTimeout(() => processChunk({ timeRemaining: () => 50 }), 0);
+        }
+    });
+}
+// 🆕 預載入熱門饋線
+async function preloadPopularFeeders() {
+    const popularFeeders = ['6A22', '6A23', '6A24', '6A25'];
+    
+    console.log('🔥 預載入熱門饋線...');
+    showToast('🔥 開始預載入熱門饋線...', 'info');
+    
+    let successful = 0;
+    for (const feeder of popularFeeders) {
+        try {
+            const fileName = `119_${feeder}.json`;
+            if (feederCache.get(fileName)) continue;
+            
+            const fileId = getFileIdByName(fileName);
+            const bestUrl = await getBestDownloadUrl(fileId);
+            const jsonData = await fastJsonLoader.loadJsonWithStream(bestUrl);
+            feederCache.set(fileName, jsonData);
+            successful++;
+        } catch (error) {
+            console.warn(`預載入 ${feeder} 失敗:`, error);
+        }
+    }
+    
+    showToast(`🔥 已預載入 ${successful} 個熱門饋線`, 'success');
+}
+
+// 🆕 顯示快取狀態
+function showCacheStats() {
+    const stats = feederCache.getStats();
+    const localSize = localStorageManager.getStorageSize();
+    
+    const message = `📊 快取狀態報告\n\n` +
+                   `記憶體快取: ${stats.count} 個檔案\n` +
+                   `快取大小: ${(stats.totalSize / 1024).toFixed(1)} KB\n` +
+                   `本地儲存: ${(localSize / 1024).toFixed(1)} KB\n\n` +
+                   `快取檔案:\n${stats.items.join('\n')}`;
+    
+    alert(message);
+}
+
+// 🆕 快取管理系統
+class FeederCache {
+    constructor() {
+        this.cache = new Map();
+        this.maxCacheSize = 10;
+        this.cacheExpiry = 30 * 60 * 1000; // 30分鐘過期
+    }
+    
+    set(fileName, data) {
+        const cacheData = {
+            data: data,
+            timestamp: Date.now(),
+            size: JSON.stringify(data).length
+        };
+        
+        if (this.cache.size >= this.maxCacheSize) {
+            const oldestKey = this.cache.keys().next().value;
+            this.cache.delete(oldestKey);
+            console.log(`🗑️ 移除舊快取: ${oldestKey}`);
+        }
+        
+        this.cache.set(fileName, cacheData);
+        console.log(`💾 快取已儲存: ${fileName} (${(cacheData.size/1024).toFixed(1)}KB)`);
+    }
+    
+    get(fileName) {
+        const cached = this.cache.get(fileName);
+        if (!cached) return null;
+        
+        if (Date.now() - cached.timestamp > this.cacheExpiry) {
+            this.cache.delete(fileName);
+            console.log(`⏰ 快取已過期: ${fileName}`);
+            return null;
+        }
+        
+        console.log(`⚡ 使用快取: ${fileName}`);
+        return cached.data;
+    }
+    
+    clear() {
+        this.cache.clear();
+        console.log('🧹 已清除所有快取');
+    }
+    
+    getStats() {
+        const totalSize = Array.from(this.cache.values())
+            .reduce((sum, item) => sum + item.size, 0);
+        
+        return {
+            count: this.cache.size,
+            totalSize: totalSize,
+            items: Array.from(this.cache.keys())
+        };
+    }
+}
+
+// 🆕 高效 JSON 處理類別
+// 🔧 修正版：高效 JSON 處理類別
+class FastJsonLoader {
+    constructor() {
+        this.chunkSize = 1024 * 64;
+        this.timeout = 10000;
+    }
+    
+    async loadJsonWithStream(url, onProgress = null) {
+        console.log('🌊 啟動載入...');
+        const startTime = Date.now();
+        
+        try {
+            // 🔧 檢查是否為 GAS 代理 URL
+            if (url.includes('script.google.com')) {
+                return await this.loadFromGASProxy(url, onProgress);
+            } else {
+                return await this.loadDirectly(url, onProgress);
+            }
+            
+        } catch (error) {
+            console.error('❌ 載入失敗:', error);
+            throw error;
+        }
+    }
+    
+    // 🆕 從 GAS 代理載入
+    async loadFromGASProxy(url, onProgress = null) {
+        console.log('🔄 使用 GAS 代理載入...');
+        
+        if (onProgress) onProgress(10, '連接 GAS 代理...');
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        if (onProgress) onProgress(50, '接收資料...');
+        
+        const result = await response.json();
+        
+        if (onProgress) onProgress(80, '解析資料...');
+        
+        if (!result.success) {
+            throw new Error(result.error || '載入失敗');
+        }
+        
+        if (onProgress) onProgress(100, '載入完成');
+        
+        console.log(`✅ GAS 代理載入成功: ${result.data.fileName}`);
+        return result.data.data; // 返回實際的 JSON 資料
+    }
+    
+    // 🆕 直接載入（備用方案）
+    async loadDirectly(url, onProgress = null) {
+        console.log('🔄 直接載入...');
+        
+        const response = await fetch(url, {
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const contentLength = response.headers.get('content-length');
+        const total = contentLength ? parseInt(contentLength) : 0;
+        let loaded = 0;
+        
+        const reader = response.body.getReader();
+        const chunks = [];
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) break;
+            
+            chunks.push(value);
+            loaded += value.length;
+            
+            if (onProgress && total > 0) {
+                const percent = Math.round((loaded / total) * 100);
+                onProgress(percent, `載入中... ${this.formatBytes(loaded)}/${this.formatBytes(total)}`);
+            }
+        }
+        
+        const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const combined = new Uint8Array(totalLength);
+        let offset = 0;
+        
+        for (const chunk of chunks) {
+            combined.set(chunk, offset);
+            offset += chunk.length;
+        }
+        
+        const text = new TextDecoder().decode(combined);
+        
+        // 🔧 檢查是否為 HTML（Google Drive 登入頁面）
+        if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+            throw new Error('收到 HTML 回應而非 JSON 檔案，可能需要登入 Google Drive');
+        }
+        
+        const jsonData = JSON.parse(text);
+        
+        const loadTime = ((Date.now() - Date.now()) / 1000).toFixed(2);
+        console.log(`⚡ 直接載入完成: ${loadTime}秒, 大小: ${this.formatBytes(totalLength)}`);
+        
+        return jsonData;
+    }
+    
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+}
+
+// 🆕 本地儲存管理
+class LocalStorageManager {
+    constructor() {
+        this.prefix = 'feeder_';
+        this.maxSize = 50 * 1024 * 1024; // 50MB 限制
+    }
+    
+    async saveToLocal(fileName, data) {
+        try {
+            const compressed = this.compressData(data);
+            const key = this.prefix + fileName;
+            
+            if (this.getStorageSize() + compressed.length > this.maxSize) {
+                this.cleanOldData();
+            }
+            
+            localStorage.setItem(key, compressed);
+            localStorage.setItem(key + '_timestamp', Date.now().toString());
+            
+            console.log(`💾 已儲存到本地: ${fileName}`);
+            
+        } catch (error) {
+            console.warn('⚠️ 本地儲存失敗:', error);
+        }
+    }
+    
+    loadFromLocal(fileName) {
+        try {
+            const key = this.prefix + fileName;
+            const compressed = localStorage.getItem(key);
+            const timestamp = localStorage.getItem(key + '_timestamp');
+            
+            if (!compressed || !timestamp) return null;
+            
+            const age = Date.now() - parseInt(timestamp);
+            if (age > 24 * 60 * 60 * 1000) {
+                this.removeFromLocal(fileName);
+                return null;
+            }
+            
+            const data = this.decompressData(compressed);
+            console.log(`📱 從本地載入: ${fileName}`);
+            return data;
+            
+        } catch (error) {
+            console.warn('⚠️ 本地載入失敗:', error);
+            return null;
+        }
+    }
+    
+    compressData(data) {
+        return JSON.stringify(data);
+    }
+    
+    decompressData(compressed) {
+        return JSON.parse(compressed);
+    }
+    
+    getStorageSize() {
+        let total = 0;
+        for (let key in localStorage) {
+            if (key.startsWith(this.prefix)) {
+                total += localStorage[key].length;
+            }
+        }
+        return total;
+    }
+    
+    cleanOldData() {
+        const items = [];
+        for (let key in localStorage) {
+            if (key.startsWith(this.prefix) && key.endsWith('_timestamp')) {
+                const timestamp = parseInt(localStorage[key]);
+                items.push({ key: key.replace('_timestamp', ''), timestamp });
+            }
+        }
+        
+        items.sort((a, b) => a.timestamp - b.timestamp);
+        const toRemove = items.slice(0, Math.ceil(items.length / 3));
+        
+        toRemove.forEach(item => {
+            localStorage.removeItem(item.key);
+            localStorage.removeItem(item.key + '_timestamp');
+        });
+        
+        console.log(`🧹 清理了 ${toRemove.length} 個舊檔案`);
+    }
+    
+    removeFromLocal(fileName) {
+        const key = this.prefix + fileName;
+        localStorage.removeItem(key);
+        localStorage.removeItem(key + '_timestamp');
+    }
+}
+
+// 新增：地圖旋轉相關變數
+let currentRotation = 0;
+let isFollowingHeading = false;
+let headingWatchId = null;
+
+// 新增：測量工具相關變數
+let measureDistanceMode = false;
+let measureMarkers = [];
+let measureLines = [];
+// 新增：地圖旋轉功能
+function rotateMap(degrees) {
+    currentRotation = (currentRotation + degrees) % 360;
+    if (currentRotation < 0) currentRotation += 360;
+    
+    if (map.setBearing) {
+        map.setBearing(currentRotation);
+    }
+    
+    updateRotationSlider();
+    updateCompassDisplay(currentRotation);
+}
+
+function setMapRotation(degrees) {
+    currentRotation = parseFloat(degrees);
+    
+    if (map.setBearing) {
+        map.setBearing(currentRotation);
+    }
+    
+    updateCompassDisplay(currentRotation);
+}
+
+function resetMapRotation() {
+    if (map) {
+        map.setBearing(0);
+        updateCompassDisplay(0);
+        showToast('🧭 地圖方向已重置', 'success');
+    }
+}
+
+function updateRotationSlider() {
+    const slider = document.getElementById('rotationSlider');
+    if (slider) {
+        slider.value = currentRotation;
+    }
+}
+
+// 監聽地圖方向變化 (手動拖拽時)
+map.on('rotate', function() {
+    const bearing = map.getBearing();
+    updateCompassDisplay(bearing);
+});
+
+// 更新指南針顯示
+function updateCompassDisplay(bearing) {
+    const compassDisplay = document.getElementById('compassDisplay');
+    if (compassDisplay) {
+        const normalizedBearing = Math.round(bearing % 360);
+        compassDisplay.textContent = `方位: ${normalizedBearing}°`;
+    }
+}
+
+function getCompassDirection(bearing) {
+    const directions = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'];
+    const index = Math.round(bearing / 45) % 8;
+    return directions[index];
+}
+
+// 新增：跟隨裝置方向功能
+// 切換跟隨裝置方向
+function toggleFollowHeading() {
+    const btn = document.getElementById('followHeadingBtn');
+    
+    if (!isFollowingHeading) {
+        // 開始跟隨方向
+        if ('DeviceOrientationEvent' in window) {
+            startFollowHeading();
+            btn.classList.add('active');
+            btn.textContent = '📱 停止跟隨';
+            isFollowingHeading = true;
+            showToast('📱 開始跟隨裝置方向', 'success');
+        } else {
+            showToast('❌ 您的裝置不支援方向感測', 'error');
+        }
+    } else {
+        // 停止跟隨方向
+        stopFollowHeading();
+        btn.classList.remove('active');
+        btn.textContent = '📱 跟隨裝置方向';
+        isFollowingHeading = false;
+        showToast('📱 已停止跟隨裝置方向', 'info');
+    }
+}
+// 開始跟隨裝置方向
+function startFollowHeading() {
+    if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(
+            function(position) {
+                if (position.coords.heading !== null && position.coords.heading !== undefined) {
+                    const heading = position.coords.heading;
+                    map.setBearing(heading);
+                    updateCompassDisplay(heading);
+                }
+            },
+            function(error) {
+                console.error('無法取得位置資訊:', error);
+                showToast('❌ 無法取得裝置方向', 'error');
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge: 1000,
+                timeout: 10000
+            }
+        );
+    }
+    
+    // 同時監聽裝置方向事件
+    if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', handleDeviceOrientation);
+    }
+}
+// 停止跟隨裝置方向
+function stopFollowHeading() {
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+    
+    if (window.DeviceOrientationEvent) {
+        window.removeEventListener('deviceorientation', handleDeviceOrientation);
+    }
+}
+// 處理裝置方向事件
+function handleDeviceOrientation(event) {
+    if (isFollowingHeading && event.alpha !== null) {
+        // event.alpha 是指北針方向 (0-360度)
+        const heading = 360 - event.alpha; // 轉換為地圖方向
+        map.setBearing(heading);
+        updateCompassDisplay(heading);
+    }
+}
+
+// 新增：圖層切換功能
+function initializeLayerSwitcher() {
+    const baseLayerRadios = document.querySelectorAll('input[name="baseLayer"]');
+    
+    baseLayerRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.checked) {
+                switchBaseLayer(this.value);
+            }
+        });
+    });
+}
+
+function switchBaseLayer(layerName) {
+    // 移除當前基礎圖層
+    if (window.currentBaseLayer) {
+        map.removeLayer(window.currentBaseLayer);
+    }
+    
+    // 加入新的基礎圖層
+    if (window.mapLayers[layerName]) {
+        window.currentBaseLayer = window.mapLayers[layerName].addTo(map);
+        console.log(`🗺️ 切換到圖層: ${layerName}`);
+        showToast(`🗺️ 已切換到 ${getLayerDisplayName(layerName)}`, 'success');
+    }
+}
+
+function getLayerDisplayName(layerName) {
+    const names = {
+        googleStreets: 'Google 街景圖',
+        googleSatellite: 'Google 衛星影像',
+        googleHybrid: 'Google 混合圖',
+        openStreetMap: 'OpenStreetMap',
+        nlscMap: '國土測繪電子地圖',
+        nlscPhoto: '國土測繪正射影像',
+        cartoDB: 'CartoDB 淡色',
+        stamen: 'Stamen 黑白',
+        esriSatellite: 'Esri 衛星影像'
+    };
+    return names[layerName] || layerName;
+}
+
+// 新增：疊加圖層控制
+function toggleTrafficLayer() {
+    const checkbox = document.getElementById('trafficLayer');
+    
+    if (checkbox.checked) {
+        // 加入交通路況圖層（使用 Google 交通資訊）
+        if (!window.overlayLayers.traffic) {
+            window.overlayLayers.traffic = L.tileLayer('https://{s}.google.com/vt/lyrs=h@{time}&x={x}&y={y}&z={z}', {
+                maxZoom: 22,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                time: Date.now(),
+                opacity: 0.7
+            });
+        }
+        window.overlayLayers.traffic.addTo(map);
+        showToast('🚦 已開啟交通路況', 'info');
+    } else {
+        if (window.overlayLayers.traffic) {
+            map.removeLayer(window.overlayLayers.traffic);
+        }
+        showToast('🚦 已關閉交通路況', 'info');
+    }
+}
+
+function toggleWeatherLayer() {
+    const checkbox = document.getElementById('weatherLayer');
+    
+    if (checkbox.checked) {
+        // 加入天氣雷達圖層
+        if (!window.overlayLayers.weather) {
+            window.overlayLayers.weather = L.tileLayer('https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=YOUR_API_KEY', {
+                maxZoom: 22,
+                opacity: 0.6,
+                attribution: '© OpenWeatherMap'
+            });
+        }
+        window.overlayLayers.weather.addTo(map);
+        showToast('🌧️ 已開啟天氣雷達', 'info');
+    } else {
+        if (window.overlayLayers.weather) {
+            map.removeLayer(window.overlayLayers.weather);
+        }
+        showToast('🌧️ 已關閉天氣雷達', 'info');
+    }
+}
+
+function toggleTerrainLayer() {
+    const checkbox = document.getElementById('terrainLayer');
+    
+    if (checkbox.checked) {
+        // 加入地形等高線圖層
+        if (!window.overlayLayers.terrain) {
+            window.overlayLayers.terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                maxZoom: 22,
+                opacity: 0.5,
+                attribution: '© OpenTopoMap'
+            });
+        }
+        window.overlayLayers.terrain.addTo(map);
+        showToast('🏔️ 已開啟地形等高線', 'info');
+    } else {
+        if (window.overlayLayers.terrain) {
+            map.removeLayer(window.overlayLayers.terrain);
+        }
+        showToast('🏔️ 已關閉地形等高線', 'info');
+    }
+}
+
+// 新增：調整圖層透明度
+function adjustLayerOpacity(value) {
+    const opacity = value / 100;
+    document.getElementById('opacityValue').textContent = value + '%';
+    
+    if (window.currentBaseLayer) {
+        window.currentBaseLayer.setOpacity(opacity);
+    }
+}
+
+// 🔧 修正：全螢幕功能 - 改善按鈕狀態管理
+function toggleFullscreen() {
+    const btn = document.querySelector('.fullscreen-btn');
+    
+    if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement) {
+        // 進入全螢幕
+        const element = document.documentElement;
+        
+        if (element.requestFullscreen) {
+            element.requestFullscreen();
+        } else if (element.webkitRequestFullscreen) {
+            element.webkitRequestFullscreen();
+        } else if (element.mozRequestFullScreen) {
+            element.mozRequestFullScreen();
+        } else if (element.msRequestFullscreen) {
+            element.msRequestFullscreen();
+        }
+        
+    } else {
+        // 退出全螢幕
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+            document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+        }
+    }
+}
+
+// 🆕 監聽全螢幕狀態變化
+function handleFullscreenChange() {
+    const btn = document.querySelector('.fullscreen-btn');
+    const body = document.body;
+    
+    const isFullscreen = !!(document.fullscreenElement || 
+                           document.webkitFullscreenElement || 
+                           document.mozFullScreenElement || 
+                           document.msFullscreenElement);
+    
+    if (isFullscreen) {
+        btn.textContent = '🔳 退出全螢幕';
+        btn.title = '點擊退出全螢幕模式 (或按 ESC)';
+        body.classList.add('fullscreen-mode');
+        showToast('🔲 已進入全螢幕模式，點擊左上角按鈕或按 ESC 退出', 'info');
+        
+        // 🔧 延遲調整地圖大小
+        setTimeout(() => {
+            if (map) {
+                map.invalidateSize();
+            }
+        }, 100);
+        
+    } else {
+        btn.textContent = '🔲 全螢幕';
+        btn.title = '點擊進入全螢幕模式';
+        body.classList.remove('fullscreen-mode');
+        showToast('🔳 已退出全螢幕模式', 'info');
+        
+        // 🔧 延遲調整地圖大小
+        setTimeout(() => {
+            if (map) {
+                map.invalidateSize();
+            }
+        }, 100);
+    }
+}
+
+// 🆕 綁定全螢幕事件監聽器
+document.addEventListener('fullscreenchange', handleFullscreenChange);
+document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+// 🆕 ESC 鍵退出全螢幕提示
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && (document.fullscreenElement || document.webkitFullscreenElement)) {
+        showToast('🔳 按 ESC 鍵退出全螢幕', 'info');
+    }
+});
+// 新增：測量工具初始化
+function initializeMeasureTools() {
+    // 初始化測量相關的地圖事件監聽
+    map.on('click', handleMapClick);
+}
+
+function toggleMeasureDistance() {
+    const btn = document.getElementById('measureDistanceBtn');
+    
+    if (measureDistanceMode) {
+        measureDistanceMode = false;
+        btn.classList.remove('active');
+        btn.textContent = '📏 測距';
+        map.getContainer().style.cursor = '';
+    } else {
+        measureDistanceMode = true;
+        measureAreaMode = false;
+        btn.classList.add('active');
+        btn.textContent = '⏹️ 停止測距';
+        document.getElementById('measureAreaBtn').classList.remove('active');
+        document.getElementById('measureAreaBtn').textContent = '📐 測面積';
+        map.getContainer().style.cursor = 'crosshair';
+        showToast('📏 點擊地圖開始測距', 'info');
+    }
+}
+
+function handleMapClick(e) {
+    if (measureDistanceMode) {
+        addMeasurePoint(e.latlng, 'distance');
+    }
+}
+
+function addMeasurePoint(latlng, type) {
+    const marker = L.circleMarker(latlng, {
+        radius: 5,
+        fillColor: '#ff0000',
+        color: '#ffffff',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8
+    }).addTo(map);
+    
+    measureMarkers.push(marker);
+    
+    if (measureMarkers.length >= 2) {
+        drawDistanceLine();
+    }
+}
+
+
+function drawDistanceLine() {
+    if (measureMarkers.length < 2) return;
+    
+    const points = measureMarkers.map(marker => marker.getLatLng());
+    const line = L.polyline(points, {color: 'red', weight: 3}).addTo(map);
+    measureLines.push(line);
+    
+    // 計算總距離
+    let totalDistance = 0;
+    for (let i = 1; i < points.length; i++) {
+        totalDistance += points[i-1].distanceTo(points[i]);
+    }
+    
+    const distanceText = totalDistance > 1000 ? 
+        `${(totalDistance/1000).toFixed(2)} 公里` : 
+        `${totalDistance.toFixed(0)} 公尺`;
+    
+    // 在線段中點顯示距離
+    const midpoint = points[Math.floor(points.length/2)];
+    const popup = L.popup()
+        .setLatLng(midpoint)
+        .setContent(`📏 距離: ${distanceText}`)
+        .openOn(map);
+}
+
+
+
+function clearMeasurements() {
+    // 清除所有測量標記
+    measureMarkers.forEach(marker => map.removeLayer(marker));
+    measureMarkers = [];
+    
+    // 清除所有測量線段
+    measureLines.forEach(line => map.removeLayer(line));
+    measureLines = [];
+    
+    // 關閉測量模式
+    measureDistanceMode = false;
+    
+    // 重置按鈕狀態
+    document.getElementById('measureDistanceBtn').classList.remove('active');
+    document.getElementById('measureDistanceBtn').textContent = '📏 測距';
+    
+    // 重置滑鼠游標
+    map.getContainer().style.cursor = '';
+    
+    // 關閉所有彈出視窗
+    map.closePopup();
+    
+    showToast('🗑️ 已清除所有測量', 'info');
+}
+
+
+
+// 新增：地圖縮放時自動調整控制面板
+map.on('zoomend', function() {
+    const zoom = map.getZoom();
+    const controls = document.querySelectorAll('.rotation-controls, .layer-switcher');
+    
+    controls.forEach(control => {
+        if (zoom < 10) {
+            control.style.opacity = '0.7';
+        } else {
+            control.style.opacity = '1';
+        }
+    });
+});
+
+// 新增：地圖移動時更新 URL（便於分享位置）
+let urlUpdateTimeout;
+map.on('moveend', function() {
+    clearTimeout(urlUpdateTimeout);
+    urlUpdateTimeout = setTimeout(() => {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+        const bearing = currentRotation;
+        
+        const newUrl = `${window.location.pathname}#${zoom}/${center.lat.toFixed(6)}/${center.lng.toFixed(6)}/${bearing}`;
+        window.history.replaceState(null, null, newUrl);
+    }, 1000);
+});
+
+// 新增：從 URL 載入地圖位置
+function loadMapFromURL() {
+    const hash = window.location.hash.substring(1);
+    if (hash) {
+        const parts = hash.split('/');
+        if (parts.length >= 3) {
+            const zoom = parseFloat(parts[0]);
+            const lat = parseFloat(parts[1]);
+            const lng = parseFloat(parts[2]);
+            const bearing = parts[3] ? parseFloat(parts[3]) : 0;
+            
+            if (!isNaN(zoom) && !isNaN(lat) && !isNaN(lng)) {
+                map.setView([lat, lng], zoom);
+                if (!isNaN(bearing)) {
+                    setMapRotation(bearing);
+                }
+            }
+        }
+    }
+}
+
+// 新增：右鍵選單功能
+map.on('contextmenu', function(e) {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+    
+    const contextMenu = L.popup({
+        closeButton: false,
+        autoClose: true,
+        closeOnEscapeKey: true
+    })
+    .setLatLng(e.latlng)
+    .setContent(`
+        <div style="text-align: center; min-width: 150px;">
+            <h4 style="margin: 0 0 10px 0;">📍 位置操作</h4>
+            <button onclick="copyCoordinates(${lat}, ${lng}); map.closePopup();" 
+                    style="width: 100%; margin: 2px 0; padding: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                📋 複製座標
+            </button>
+            <button onclick="openStreetView(${lat}, ${lng}); map.closePopup();" 
+                    style="width: 100%; margin: 2px 0; padding: 5px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                🗺️ 街景圖
+            </button>
+            <button onclick="openNavigation(${lat}, ${lng}, '選定位置'); map.closePopup();" 
+                    style="width: 100%; margin: 2px 0; padding: 5px; background: #ffc107; color: black; border: none; border-radius: 3px; cursor: pointer;">
+                🧭 導航至此
+            </button>
+            <button onclick="addCustomMarker(${lat}, ${lng}); map.closePopup();" 
+                    style="width: 100%; margin: 2px 0; padding: 5px; background: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                📌 新增標記
+            </button>
+        </div>
+    `)
+    .openOn(map);
+});
+
+// 新增：自訂標記功能
+let customMarkers = [];
+
+function addCustomMarker(lat, lng) {
+    const markerText = prompt('請輸入標記名稱:', '自訂標記');
+    if (markerText) {
+        const marker = L.marker([lat, lng], {
+            icon: L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            })
+        }).addTo(map);
+        
+        marker.bindPopup(`
+            <div style="text-align: center;">
+                <h4>📌 ${markerText}</h4>
+                <p><strong>座標:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
+                <button onclick="removeCustomMarker(this)" data-marker-id="${customMarkers.length}"
+                        style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                    🗑️ 刪除標記
+                </button>
+            </div>
+        `).openPopup();
+        
+        customMarkers.push(marker);
+        showToast(`📌 已新增標記: ${markerText}`, 'success');
+    }
+}
+
+function removeCustomMarker(button) {
+    const markerId = parseInt(button.getAttribute('data-marker-id'));
+    if (customMarkers[markerId]) {
+        map.removeLayer(customMarkers[markerId]);
+        customMarkers[markerId] = null;
+        map.closePopup();
+        showToast('🗑️ 已刪除標記', 'info');
+    }
+}
+
+// 新增：批次清除自訂標記
+function clearAllCustomMarkers() {
+    customMarkers.forEach(marker => {
+        if (marker) {
+            map.removeLayer(marker);
+        }
+    });
+    customMarkers = [];
+    showToast('🗑️ 已清除所有自訂標記', 'info');
+}
+
+// 新增：匯出地圖為圖片功能
+function exportMapAsImage() {
+    // 使用 html2canvas 或類似庫來截圖
+    // 這裡提供一個簡化版本
+    showToast('📸 地圖截圖功能開發中...', 'info');
+}
+
+// 新增：分享地圖位置功能
+function shareMapLocation() {
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    const bearing = currentRotation;
+    
+    const shareUrl = `${window.location.origin}${window.location.pathname}#${zoom}/${center.lat.toFixed(6)}/${center.lng.toFixed(6)}/${bearing}`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: '饋線圖地圖位置',
+            text: `查看這個地圖位置 (縮放: ${zoom}, 方位: ${Math.round(bearing)}°)`,
+            url: shareUrl
+        });
+    } else {
+        // 備用方案：複製到剪貼簿
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            showToast('🔗 地圖位置連結已複製到剪貼簿', 'success');
+        });
+    }
+}
+
+// 頁面載入完成後的額外初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 載入 URL 中的地圖位置
+    setTimeout(loadMapFromURL, 1000);
+    
+    // 監聽全螢幕變化
+    document.addEventListener('fullscreenchange', function() {
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 100);
+    });
+    
+    // 監聽視窗大小變化
+    window.addEventListener('resize', function() {
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 100);
+    });
+});
+
+// 圖層選單控制
+function toggleLayerMenu() {
+    const menu = document.getElementById('layerMenu');
+    const isVisible = menu.style.display !== 'none';
+    menu.style.display = isVisible ? 'none' : 'block';
+}
+
+// 點擊地圖時關閉圖層選單
+map.on('click', function() {
+    document.getElementById('layerMenu').style.display = 'none';
+});
+
+// 🆕 新增：疊加圖層控制函數
+// 🔧 修改：移除 checkbox 依賴的版本
+function toggleOverlayLayer(layerName, forceState = null) {
+    const layer = window.overlayLayers[layerName];
+    if (!layer) {
+        console.warn(`找不到圖層: ${layerName}`);
+        showToast(`❌ 圖層 ${layerName} 暫時無法使用`, 'error');
+        return;
+    }
+    
+    // 檢查圖層是否已在地圖上
+    const isLayerOnMap = map.hasLayer(layer);
+    const shouldAdd = forceState !== null ? forceState : !isLayerOnMap;
+    
+    if (shouldAdd && !isLayerOnMap) {
+        layer.addTo(map);
+        showToast(`✅ 已開啟 ${getOverlayDisplayName(layerName)}`, 'success');
+        console.log(`🗺️ 開啟圖層: ${layerName}`);
+    } else if (!shouldAdd && isLayerOnMap) {
+        map.removeLayer(layer);
+        showToast(`❌ 已關閉 ${getOverlayDisplayName(layerName)}`, 'info');
+        console.log(`🗺️ 關閉圖層: ${layerName}`);
+    }
+    
+    return !isLayerOnMap; // 回傳新的狀態
+}
+
+// 🆕 新增：直接控制圖層的便利函式
+function showOverlayLayer(layerName) {
+    return toggleOverlayLayer(layerName, true);
+}
+
+function hideOverlayLayer(layerName) {
+    return toggleOverlayLayer(layerName, false);
+}
+
+// 🆕 新增：批次控制圖層
+function toggleMultipleLayers(layerNames, state = null) {
+    layerNames.forEach(layerName => {
+        toggleOverlayLayer(layerName, state);
+    });
+}
+
+
+// 🆕 新增：取得疊加圖層顯示名稱
+function getOverlayDisplayName(layerName) {
+    const names = {
+        roadNetwork: '路網圖層',
+        railway: '鐵路圖層',
+        landmark: '公有土地圖',
+        cadastre: '行政區界圖',
+        section: '段籍圖',
+        village: '村里界圖',
+        wayMeter: '公路里程標誌',
+        kaohsiungSlope: '高雄山坡地範圍',
+        industrialZone: '工業區範圍',
+        industrialLand: '工業區地籍圖',
+        industrialUser: '工業區用戶名',
+        urbanPlan: '高雄市都市計畫圖',
+        urbanPlanBoundary: '高雄市都市計畫範圍圖',
+        trafficNetwork: '國土計畫圖'
+    };
+    return names[layerName] || layerName;
+}
+
+
+// 🆕 手機版導航功能
+// 🆕 手機版導航功能 - 改良版
+function initMobileNavigation() {
+    const navTabs = document.querySelectorAll('.nav-tab');
+    const sidebar = document.querySelector('.sidebar');
+    const mapContainer = document.querySelector('.map-container');
+    
+    // 只在手機版執行
+    if (window.innerWidth <= 768) {
+        navTabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                // 移除所有 active 狀態
+                navTabs.forEach(t => t.classList.remove('active'));
+                // 添加當前 active 狀態
+                this.classList.add('active');
+                
+                const tabType = this.getAttribute('data-tab');
+                
+                switch(tabType) {
+                    case 'map':
+                        // 顯示地圖，隱藏側邊欄
+                        mapContainer.style.display = 'block';
+                        sidebar.style.display = 'none';
+                        // 重新調整地圖大小
+                        setTimeout(() => {
+                            if (map) map.invalidateSize();
+                        }, 100);
+                        break;
+                        
+                    case 'controls':
+                        // 顯示控制面板，隱藏地圖
+                        mapContainer.style.display = 'none';
+                        sidebar.style.display = 'block';
+                        // 恢復原始內容
+                        restoreSidebarContent();
+                        break;
+                        
+                    case 'info':
+                        // 顯示資訊面板
+                        showInfoPanel();
+                        break;
+                }
+            });
+        });
+    }
+}
+// 🆕 資訊面板功能
+// 🆕 資訊面板
+function showInfoPanel() {
+    const sidebar = document.querySelector('.sidebar');
+    const mapContainer = document.querySelector('.map-container');
+    
+    const infoContent = `
+        <div style="padding: 20px; background: white; height: 100%; overflow-y: auto;">
+            <h3 style="color: #2c3e50; margin-bottom: 20px;">📋 系統資訊</h3>
+            
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #495057;">🔧 版本資訊</h4>
+                <p style="margin: 5px 0;"><strong>版本：</strong>2.0.0</p>
+                <p style="margin: 5px 0;"><strong>更新：</strong>${new Date().toLocaleDateString('zh-TW')}</p>
+            </div>
+            
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #1976d2;">📖 功能說明</h4>
+                <ul style="margin: 0; padding-left: 20px;">
+                    <li style="margin: 8px 0;">🗺️ <strong>地圖檢視：</strong>瀏覽饋線分佈圖</li>
+                    <li style="margin: 8px 0;">⚙️ <strong>饋線控制：</strong>載入和管理饋線資料</li>
+                    <li style="margin: 8px 0;">📏 <strong>測距工具：</strong>測量地圖上的距離</li>
+                    <li style="margin: 8px 0;">🎛️ <strong>圖層控制：</strong>顯示/隱藏不同圖層</li>
+                </ul>
+            </div>
+            
+            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #856404;">💡 使用提示</h4>
+                <p style="margin: 5px 0; font-size: 14px;">• 點擊線段可以高亮顯示</p>
+                <p style="margin: 5px 0; font-size: 14px;">• 長按地圖可以開啟右鍵選單</p>
+                <p style="margin: 5px 0; font-size: 14px;">• 使用雙指縮放調整地圖大小</p>
+            </div>
+            
+            <button onclick="switchToMapTab()" 
+                    style="width: 100%; padding: 12px; background: linear-gradient(135deg, #3498db, #2980b9); 
+                           color: white; border: none; border-radius: 8px; cursor: pointer; 
+                           font-size: 16px; font-weight: bold; margin-top: 10px;
+                           box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);">
+                🗺️ 返回地圖
+            </button>
+        </div>
+    `;
+    
+    sidebar.innerHTML = infoContent;
+    sidebar.style.display = 'block';
+    mapContainer.style.display = 'none';
+}
+// 🆕 切換到地圖標籤
+function switchToMapTab() {
+    const mapTab = document.querySelector('[data-tab="map"]');
+    if (mapTab) {
+        mapTab.click();
+    }
+}
+
+// 🆕 監聽視窗大小變化
+window.addEventListener('resize', function() {
+    // 當從手機切換到桌面時，重置顯示狀態
+    if (window.innerWidth > 768) {
+        const sidebar = document.querySelector('.sidebar');
+        const mapContainer = document.querySelector('.map-container');
+        
+        sidebar.style.display = 'block';
+        mapContainer.style.display = 'block';
+        
+        // 恢復原始側邊欄內容（如果被修改過）
+        location.reload(); // 簡單的重載方案
+    }
+    
+    // 調整地圖大小
+    setTimeout(() => {
+        if (map) map.invalidateSize();
+    }, 100);
+});
+
+		  </script>
+	  </body>
+	  </html>
