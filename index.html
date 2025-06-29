@@ -1158,7 +1158,6 @@ body {
         transform: scale(0.9);
     }
 }
-
 /* 🔧 新增：手機版隱藏測量工具 */
 @media (max-width: 768px) {
     .measure-controls {
@@ -1483,6 +1482,24 @@ body {
 				
 
 
+				
+				
+				<!-- 修改：定位控制按鈕 -->
+				<div class="location-controls">
+					<button id="locateBtn" class="location-btn" onclick="toggleContinuousLocation()">
+						📍 定位
+					</button>
+					<button class="rotation-btn" id="followHeadingBtn" onclick="toggleFollowHeading()">
+						📱 跟隨裝置方向
+					</button>
+					<div id="compass" style="display: none; position: fixed; bottom: 180px; right: 20px; z-index: 1000;">
+						<!-- 指北針內容將由 JavaScript 動態生成 -->
+					</div>
+				</div>
+
+				<!-- 簡化：旋轉控制 - 只保留跟隨方向 -->
+
+								
 				<!-- 新增：測量工具 -->
 				<div class="measure-controls">
 					<button class="measure-btn" id="measureDistanceBtn" onclick="toggleMeasureDistance()">
