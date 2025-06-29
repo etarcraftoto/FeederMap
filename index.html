@@ -2081,6 +2081,11 @@ function calculateOffset(block, subBlock, detail, isX) {
 		let totalNodes = 0;
 		let totalLinks = 0;
 		
+		// 🔧 修正版：處理裝置方向事件 - 修正角度反轉問題
+		let lastHeading = null;
+		const HEADING_THRESHOLD = 3; // 增加方向變化閾值
+
+		
 		// 處理台電配電系統的 GeoNode 和 GeoLink 格式
 		if (data.GeoNode && Array.isArray(data.GeoNode)) {
 			console.log('✅ 識別為台電配電系統格式');
@@ -5204,9 +5209,6 @@ function stopFollowHeading(btn) {
     console.log('✅ 方向跟隨已停止');
 }
 
-// 🔧 修正版：處理裝置方向事件 - 修正角度反轉問題
-let lastHeading = null;
-const HEADING_THRESHOLD = 3; // 增加方向變化閾值
 
 // 🔧 修正版：處理裝置方向事件
 function handleDeviceOrientation(event) {
