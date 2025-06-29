@@ -1048,6 +1048,67 @@ body {
         position: relative;
     }
 }
+
+/* Google Maps 風格的定位圖標 */
+.location-marker {
+    position: relative;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 外圈光暈效果 */
+.location-marker::before {
+    content: '';
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    background: rgba(66, 133, 244, 0.2);
+    border-radius: 50%;
+    animation: pulse-glow 2s infinite;
+    z-index: 1;
+}
+
+/* 中間白色圓圈 */
+.location-marker::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    border: 2px solid #4285f4;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 2;
+}
+
+/* 中心藍色圓點 - 加大尺寸 */
+.location-marker .center-dot {
+    width: 12px;
+    height: 12px;
+    background: #4285f4;
+    border-radius: 50%;
+    z-index: 3;
+    position: relative;
+}
+
+/* 光暈動畫 */
+@keyframes pulse-glow {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.8;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.3;
+    }
+    100% {
+        transform: scale(0.8);
+        opacity: 0.8;
+    }
+}
 		</style>
 	</head>
 	<body>
@@ -1371,8 +1432,19 @@ body {
 					<button class="rotation-btn" id="followHeadingBtn" onclick="toggleFollowHeading()">
 						📱 跟隨裝置方向
 					</button>
+					<div id="compass" onclick="toggleCompass()">
+					<svg class="compass-needle" width="60" height="60" viewBox="0 0 100 100">
+						<circle cx="50" cy="50" r="45" fill="none" stroke="#ddd" stroke-width="2"/>
+						<polygon points="50,10 55,45 50,40 45,45" fill="#ff4444" stroke="#fff" stroke-width="1"/>
+						<polygon points="50,90 55,55 50,60 45,55" fill="#666" stroke="#fff" stroke-width="1"/>
+						<circle cx="50" cy="50" r="8" fill="#333"/>
+						<text x="50" y="8" text-anchor="middle" font-size="12" fill="#333" font-weight="bold">N</text>
+					</svg>
 				</div>
-				
+				</div>
+
+				<!-- 簡化：旋轉控制 - 只保留跟隨方向 -->
+
 								
 				<!-- 新增：測量工具 -->
 				<div class="measure-controls">
@@ -1693,21 +1765,22 @@ function enableContinuousLocation() {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
 
-            if (!userLocationMarker) {
-                userLocationMarker = L.marker([lat, lng], {
-                    icon: L.icon({
-                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                        iconSize: [25, 41],
-                        iconAnchor: [12, 41],
-                        popupAnchor: [1, -34],
-                        shadowSize: [41, 41]
-                    })
-                }).addTo(map);
-                userLocationMarker.bindPopup('您的位置').openPopup();
-            } else {
-                userLocationMarker.setLatLng([lat, lng]);
-            }
+		if (!userLocationMarker) {
+			// 創建自定義定位圖標
+			const locationIcon = L.divIcon({
+				html: '<div class="location-marker"><div class="center-dot"></div></div>',
+				className: 'custom-location-icon',
+				iconSize: [40, 40],
+				iconAnchor: [20, 20]
+			});
+			
+			userLocationMarker = L.marker([lat, lng], {
+				icon: locationIcon
+			}).addTo(map);
+			userLocationMarker.bindPopup('您的位置').openPopup();
+		} else {
+			userLocationMarker.setLatLng([lat, lng]);
+		}
 
             map.flyTo([lat, lng], 16, {
                 duration: 0.5,
@@ -2603,7 +2676,7 @@ function calculateOffset(block, subBlock, detail, isX) {
 					  case 110: return 'solar';          // 太陽能設備
 					  case 114: return 'switches';       // 開關設備
 					  case 115: return 'transformers';   // 變壓器
-					  case 116: return 'poles_116';      // 電桿設備
+					  case 116: return 'poles_116';      // 終端
 					  case 120: return 'grounding';      // 接地設備
 					  case 131: return 'others_131';     // 其他設備
 					  default: return 'unknown';         // 未知設備
@@ -2621,7 +2694,7 @@ function calculateOffset(block, subBlock, detail, isX) {
         'solar': { name: '🟡 太陽能設備 (FSC:110)', color: '#f1c40f', count: 0, type: 'point' },
         'switches': { name: '🟢 開關設備 (FSC:114)', color: '#27ae60', count: 0, type: 'point' },
         'transformers': { name: '🔵 變壓器 (FSC:115)', color: '#3498db', count: 0, type: 'point' },
-        'poles_116': { name: '🟤 電桿設備 (FSC:116)', color: '#8b4513', count: 0, type: 'point' },
+        'poles_116': { name: '🟤 終端 (FSC:116)', color: '#8b4513', count: 0, type: 'point' },
         'grounding': { name: '⚫ 電桿設備 (FSC:120)', color: '#2c3e50', count: 0, type: 'point' },
         'others_131': { name: '🟣 其他設備 (FSC:131)', color: '#8e44ad', count: 0, type: 'point' },
         'unknown': { name: '🔘 未知設備', color: '#95a5a6', count: 0, type: 'point' },
@@ -3933,7 +4006,7 @@ function adjustColor(color, percent) {
 			'110': '☀️',  // 太陽能設備
 			'114': '🔄',  // 開關設備
 			'115': '⚡',  // 變壓器
-			'116': '🔌',  // 電桿設備
+			'116': '🔌',  // 終端
 			'120': '🌍',  // 接地設備
 			'131': '❓'   // 其他設備
 		};
@@ -3949,7 +4022,7 @@ function adjustColor(color, percent) {
 			'110': '太陽能設備',
 			'114': '開關設備',
 			'115': '變壓器',
-			'116': '電桿設備',
+			'116': '終端',
 			'120': '電桿設備',
 			'131': '其他設備'
 		};
@@ -5616,7 +5689,87 @@ window.addEventListener('resize', function() {
         if (map) map.invalidateSize();
     }, 100);
 });
+var compass = document.querySelector('#compass');
+var isCompassActive = false;
+var lastHeading = null;
+var currentBearing = 0;
 
+function handleOrientation(event) {
+    if (!isCompassActive) return;
+    
+    var alpha = event.webkitCompassHeading || event.alpha;
+    
+    if (alpha !== null) {
+        var heading = alpha;
+        if (event.alpha !== undefined) {
+            heading = 360 - alpha;
+        }
+        
+        // 平滑處理方向變化
+        if (lastHeading === null || Math.abs(heading - lastHeading) > 2) {
+            rotateMap(heading);
+            lastHeading = heading;
+        }
+    }
+}
+
+function rotateMap(heading) {
+    currentBearing = heading;
+    
+    // 旋轉地圖
+    if (map.setBearing) {
+        map.setBearing(heading);
+    }
+    
+    // 旋轉指北針
+    const needle = compass.querySelector('.compass-needle');
+    if (needle) {
+        needle.style.transform = `rotate(${-heading}deg)`;
+    }
+}
+
+function toggleCompass() {
+    isCompassActive = !isCompassActive;
+    
+    if (isCompassActive) {
+        compass.classList.add('active');
+        compass.style.display = 'block';
+        
+        if (window.DeviceOrientationEvent) {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(response => {
+                        if (response === 'granted') {
+                            window.addEventListener("deviceorientation", handleOrientation, true);
+                        } else {
+                            alert("無法獲取設備方向權限");
+                            isCompassActive = false;
+                            compass.classList.remove('active');
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                window.addEventListener("deviceorientation", handleOrientation, true);
+            }
+        } else {
+            alert("您的設備不支持方向感應");
+            isCompassActive = false;
+            compass.classList.remove('active');
+        }
+    } else {
+        compass.classList.remove('active');
+        rotateMap(0); // 重置地圖方向
+        window.removeEventListener("deviceorientation", handleOrientation, true);
+        lastHeading = null;
+    }
+}
+
+// 點擊指北針重置方向
+compass.addEventListener('dblclick', function() {
+    if (isCompassActive) {
+        rotateMap(0);
+    }
+});
 		  </script>
 	  </body>
 	  </html>
