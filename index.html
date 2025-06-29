@@ -1831,6 +1831,10 @@ function toggleContinuousLocation() {
     }
 }
 
+// 🔧 修正：加入距離閾值防止抖動
+let lastPosition = null;
+const POSITION_THRESHOLD = 5; // 5公尺閾值
+
 function enableContinuousLocation() {
     if (navigator.geolocation) {
         isContinuousLocationEnabled = true;
@@ -1841,45 +1845,59 @@ function enableContinuousLocation() {
         watchId = navigator.geolocation.watchPosition(function (position) {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
+            const currentPosition = L.latLng(lat, lng);
 
-		if (!userLocationMarker) {
-			// 創建自定義定位圖標
-			const locationIcon = L.divIcon({
-				html: '<div class="location-marker"><div class="center-dot"></div></div>',
-				className: 'custom-location-icon',
-				iconSize: [40, 40],
-				iconAnchor: [20, 20]
-			});
-			
-			userLocationMarker = L.marker([lat, lng], {
-				icon: locationIcon
-			}).addTo(map);
-			userLocationMarker.bindPopup('您的位置').openPopup();
-		} else {
-			userLocationMarker.setLatLng([lat, lng]);
-		}
+            // 🔧 新增：檢查距離變化是否超過閾值
+            if (lastPosition && lastPosition.distanceTo(currentPosition) < POSITION_THRESHOLD) {
+                console.log('🔇 位置變化太小，跳過更新');
+                return; // 跳過更新
+            }
 
-            map.flyTo([lat, lng], 16, {
-                duration: 0.5,
-                noMoveStart: true
-            });
+            lastPosition = currentPosition;
+
+            if (!userLocationMarker) {
+                // 創建自定義定位圖標
+                const locationIcon = L.divIcon({
+                    html: '<div class="location-marker"><div class="center-dot"></div></div>',
+                    className: 'custom-location-icon',
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20]
+                });
+                
+                userLocationMarker = L.marker([lat, lng], {
+                    icon: locationIcon
+                }).addTo(map);
+            } else {
+                // 🔧 修正：使用平滑移動而非瞬間跳躍
+                userLocationMarker.setLatLng([lat, lng]);
+            }
+
+            // 🔧 修正：只在大幅度位置變化時才移動地圖視野
+            if (!lastPosition || lastPosition.distanceTo(currentPosition) > 50) {
+                map.flyTo([lat, lng], 16, {
+                    duration: 1.0, // 增加動畫時間讓移動更平滑
+                    noMoveStart: true
+                });
+            }
 
         }, function () {
             alert('無法獲取您的位置');
             disableContinuousLocation();
         }, {
             enableHighAccuracy: true,
-            maximumAge: 0,
-            timeout: 5000
+            maximumAge: 10000, // 🔧 修正：增加快取時間減少頻繁更新
+            timeout: 15000
         });
     } else {
         alert('您的瀏覽器不支持地理定位');
     }
 }
 
+// 🔧 修正：在停止定位時重置 lastPosition
 function disableContinuousLocation() {
     if (isContinuousLocationEnabled) {
         isContinuousLocationEnabled = false;
+        lastPosition = null; // 重置位置記錄
         const btn = document.getElementById('locateBtn');
         btn.classList.remove('active');
         btn.textContent = '📍 定位';
@@ -5186,6 +5204,10 @@ function stopFollowHeading(btn) {
     console.log('✅ 方向跟隨已停止');
 }
 
+// 🔧 修正版：處理裝置方向事件 - 修正角度反轉問題
+let lastHeading = null;
+const HEADING_THRESHOLD = 3; // 增加方向變化閾值
+
 // 🔧 修正版：處理裝置方向事件
 function handleDeviceOrientation(event) {
     if (!isFollowingHeading) return;
@@ -5195,14 +5217,17 @@ function handleDeviceOrientation(event) {
     // 優先使用 webkitCompassHeading（iOS）
     if (event.webkitCompassHeading !== undefined) {
         heading = event.webkitCompassHeading;
+        console.log('📱 iOS 方向:', heading);
     } 
     // 使用 alpha（Android）
     else if (event.alpha !== null) {
         heading = event.alpha;
-        // Android 角度修正
-        if (/Android/.test(navigator.userAgent)) {
-            heading = 360 - heading;
-        }
+        
+        // 🔧 重要修正：移除 Android 的角度反轉
+        // 原本的程式碼會讓地圖朝反方向轉動
+        // heading = 360 - heading; // ❌ 移除這行
+        
+        console.log('🤖 Android 方向:', heading);
     }
     
     if (heading === null) {
@@ -5213,26 +5238,34 @@ function handleDeviceOrientation(event) {
     // 標準化角度 (0-360)
     heading = ((heading % 360) + 360) % 360;
     
-    // 平滑化處理：只有變化超過 2 度才更新
-    if (lastHeading === null || Math.abs(heading - lastHeading) > 2) {
+    // 🔧 修正：增加平滑化處理，減少抖動
+    if (lastHeading === null || Math.abs(heading - lastHeading) > HEADING_THRESHOLD) {
+        // 🔧 修正：直接使用方向值，不要反轉
         updateMapBearing(heading);
         updateCompassDisplay(heading);
         lastHeading = heading;
+        
+        console.log(`🧭 更新地圖方向: ${heading.toFixed(1)}°`);
     }
 }
 
-// 🔧 修正版：更新地圖方向
+// 🔧 修正版：更新地圖方向 - 加入平滑動畫
 function updateMapBearing(bearing) {
     if (!map) return;
     
     try {
         if (map.setBearing) {
-            map.setBearing(bearing);
+            // 🔧 修正：加入平滑動畫選項
+            map.setBearing(bearing, {
+                animate: true,
+                duration: 300 // 300ms 平滑動畫
+            });
         }
     } catch (error) {
         console.error('❌ 更新地圖方向失敗:', error);
     }
 }
+
 
 // 新增：圖層切換功能
 function initializeLayerSwitcher() {
