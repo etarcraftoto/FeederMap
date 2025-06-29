@@ -2083,8 +2083,9 @@ function calculateOffset(block, subBlock, detail, isX) {
 		
 		// 🔧 修正版：處理裝置方向事件 - 修正角度反轉問題
 		let lastHeading = null;
-		const HEADING_THRESHOLD = 3; // 增加方向變化閾值
-
+		const HEADING_THRESHOLD = 1; // 增加方向變化閾值
+		let orientationSupported = false;
+		let permissionGranted = false;
 		
 		// 處理台電配電系統的 GeoNode 和 GeoLink 格式
 		if (data.GeoNode && Array.isArray(data.GeoNode)) {
@@ -5102,63 +5103,181 @@ function calibrateDirection() {
 function applyCalibration(heading) {
     return (heading + calibrationOffset + 360) % 360;
 }
-
-// 🔧 修正版：開始跟隨方向
+// 🆕 檢測裝置方向支援性
+function checkOrientationSupport() {
+  if (typeof DeviceOrientationEvent !== 'undefined') {
+      orientationSupported = true;
+      console.log('✅ 裝置支援方向感測');
+      return true;
+  } else {
+      console.log('❌ 裝置不支援方向感測');
+      showToast('❌ 您的裝置不支援方向感測', 'error');
+      return false;
+  }
+}
+// 🔧 完全重寫：開始跟隨方向
 async function startFollowHeading(btn) {
-    console.log('🧭 啟動裝置方向跟隨...');
-    
-    // 檢查支援性
-    if (!window.DeviceOrientationEvent) {
-        showToast('❌ 您的裝置不支援方向感測', 'error');
-        return;
-    }
-    
-    try {
-        // iOS 13+ 權限請求
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-            const permission = await DeviceOrientationEvent.requestPermission();
-            if (permission !== 'granted') {
-                showToast('❌ 需要方向權限才能使用此功能', 'error');
-                return;
-            }
-        }
-        
-        // 清除舊的事件監聽器
-        if (orientationHandler) {
-            window.removeEventListener('deviceorientation', orientationHandler);
-        }
-        
-        // 建立新的事件處理器
-        orientationHandler = function(event) {
-            handleDeviceOrientation(event);
-        };
-        
-        // 綁定事件
-        window.addEventListener('deviceorientation', orientationHandler, true);
-        
-        // 更新狀態
-        isFollowingHeading = true;
-        lastHeading = null;
-        
-        // 更新按鈕
-        if (btn) {
-            btn.textContent = '🔄 停止跟隨';
-            btn.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
-            btn.classList.add('active');
-        }
-        
-        // 顯示指北針
-        showCompass();
-        
-        showToast('📱 開始跟隨裝置方向', 'success');
-        console.log('✅ 方向跟隨已啟動');
-        
-    } catch (error) {
-        console.error('❌ 啟動失敗:', error);
-        showToast('❌ 啟動失敗: ' + error.message, 'error');
-    }
+  console.log('🧭 啟動裝置方向跟隨...');
+  
+  // 1. 檢查基本支援性
+  if (!checkOrientationSupport()) {
+      return;
+  }
+  
+  try {
+      // 2. iOS 13+ 權限請求
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+          console.log('📱 iOS 裝置，請求方向權限...');
+          showToast('📱 請允許存取裝置方向', 'info');
+          
+          const permission = await DeviceOrientationEvent.requestPermission();
+          console.log('🔐 權限結果:', permission);
+          
+          if (permission !== 'granted') {
+              showToast('❌ 需要方向權限才能使用此功能', 'error');
+              return;
+          }
+          permissionGranted = true;
+      } else {
+          // Android 或舊版 iOS
+          console.log('🤖 Android 或舊版 iOS，無需權限請求');
+          permissionGranted = true;
+      }
+      
+      // 3. 清除舊的事件監聽器
+      if (orientationHandler) {
+          window.removeEventListener('deviceorientation', orientationHandler);
+          window.removeEventListener('deviceorientationabsolute', orientationHandler);
+          console.log('🧹 已清除舊的事件監聽器');
+      }
+      
+      // 4. 建立新的事件處理器
+      orientationHandler = function(event) {
+          if (isFollowingHeading) {
+              handleDeviceOrientationContinuous(event);
+          }
+      };
+      
+      // 5. 綁定事件監聽器 - 使用多種事件類型
+      window.addEventListener('deviceorientation', orientationHandler, { passive: true });
+      window.addEventListener('deviceorientationabsolute', orientationHandler, { passive: true });
+      
+      console.log('🎯 事件監聽器已綁定');
+      
+      // 6. 更新狀態
+      isFollowingHeading = true;
+      lastHeading = null;
+      
+      // 7. 更新按鈕
+      if (btn) {
+          btn.textContent = '🔄 停止跟隨';
+          btn.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+          btn.classList.add('active');
+      }
+      
+      // 8. 顯示指北針
+      showCompass();
+      
+      // 9. 測試方向感測
+      setTimeout(() => {
+          testOrientationWorking();
+      }, 2000);
+      
+      showToast('📱 開始跟隨裝置方向', 'success');
+      console.log('✅ 方向跟隨已啟動');
+      
+  } catch (error) {
+      console.error('❌ 啟動失敗:', error);
+      showToast('❌ 啟動失敗: ' + error.message, 'error');
+  }
 }
 
+// 🆕 測試方向感測是否正常工作
+function testOrientationWorking() {
+  if (!isFollowingHeading) return;
+  
+  // 檢查是否有收到方向資料
+  if (lastHeading === null) {
+      console.warn('⚠️ 2秒內未收到方向資料');
+      showToast('⚠️ 未收到方向資料，請嘗試移動裝置', 'warning');
+      
+      // 提供手動測試按鈕
+      setTimeout(() => {
+          if (lastHeading === null) {
+              showToast('❓ 點擊「數據測試」按鈕檢查感測器', 'info');
+          }
+      }, 3000);
+  } else {
+      console.log('✅ 方向感測正常工作');
+      showToast('✅ 方向跟隨正常運作', 'success');
+  }
+}
+// 🔧 完全重寫：處理裝置方向事件 - 持續更新版
+function handleDeviceOrientationContinuous(event) {
+  if (!isFollowingHeading) {
+      console.log('🚫 方向跟隨已停用，忽略事件');
+      return;
+  }
+  
+  let heading = null;
+  const timestamp = Date.now();
+  
+  // 記錄原始事件資料
+  console.log('📡 收到方向事件:', {
+      alpha: event.alpha,
+      beta: event.beta,
+      gamma: event.gamma,
+      webkitCompassHeading: event.webkitCompassHeading,
+      absolute: event.absolute,
+      timestamp: timestamp
+  });
+  
+  // 優先使用 webkitCompassHeading（iOS）
+  if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+      heading = event.webkitCompassHeading;
+      console.log('📱 使用 iOS webkitCompassHeading:', heading);
+  } 
+  // 使用 alpha（Android 和其他）
+  else if (event.alpha !== null && event.alpha !== undefined) {
+      heading = event.alpha;
+      console.log('🤖 使用 Android alpha:', heading);
+  }
+  
+  if (heading === null || heading === undefined) {
+      console.warn('⚠️ 無法取得有效的方向資料');
+      return;
+  }
+  
+  // 標準化角度 (0-360)
+  heading = ((heading % 360) + 360) % 360;
+  
+  // 🔧 重要修正：降低閾值並加入時間間隔檢查
+  const timeSinceLastUpdate = lastHeading ? (timestamp - (lastHeading.timestamp || 0)) : 1000;
+  const headingDiff = lastHeading ? Math.abs(heading - lastHeading.value) : 999;
+  
+  // 更新條件：角度變化超過閾值 OR 超過500ms沒更新
+  const shouldUpdate = (
+      lastHeading === null || 
+      headingDiff > HEADING_THRESHOLD || 
+      timeSinceLastUpdate > 500
+  );
+  
+  if (shouldUpdate) {
+      // 🔧 修正：直接使用方向值，不要反轉
+      updateMapBearing(heading);
+      updateCompassDisplay(heading);
+      
+      // 記錄更新資訊
+      lastHeading = {
+          value: heading,
+          timestamp: timestamp
+      };
+      
+      console.log(`🧭 更新地圖方向: ${heading.toFixed(1)}° (變化: ${headingDiff.toFixed(1)}°, 間隔: ${timeSinceLastUpdate}ms)`);
+  } else {
+      console.log(`🔇 跳過更新: 變化${headingDiff.toFixed(1)}° < 閾值${HEADING_THRESHOLD}°`);
+  }
+}
 // 🔧 修正版：顯示指北針
 function showCompass() {
     const compassElement = document.getElementById('compass');
@@ -5178,35 +5297,38 @@ function hideCompass() {
 
 // 🔧 修正版：停止跟隨方向
 function stopFollowHeading(btn) {
-    console.log('🛑 停止裝置方向跟隨...');
-    
-    // 移除事件監聽器
-    if (orientationHandler) {
-        window.removeEventListener('deviceorientation', orientationHandler);
-        orientationHandler = null;
-    }
-    
-    // 重置狀態
-    isFollowingHeading = false;
-    lastHeading = null;
-    
-    // 重置地圖方向
-    if (map && map.setBearing) {
-        map.setBearing(0);
-    }
-    
-    // 更新按鈕
-    if (btn) {
-        btn.textContent = '📱 跟隨裝置方向';
-        btn.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
-        btn.classList.remove('active');
-    }
-    
-    // 隱藏指北針
-    hideCompass();
-    
-    showToast('🛑 已停止跟隨裝置方向', 'info');
-    console.log('✅ 方向跟隨已停止');
+  console.log('🛑 停止裝置方向跟隨...');
+  
+  // 移除事件監聽器
+  if (orientationHandler) {
+      window.removeEventListener('deviceorientation', orientationHandler);
+      window.removeEventListener('deviceorientationabsolute', orientationHandler);
+      orientationHandler = null;
+      console.log('🧹 已移除事件監聽器');
+  }
+  
+  // 重置狀態
+  isFollowingHeading = false;
+  lastHeading = null;
+  permissionGranted = false;
+  
+  // 重置地圖方向
+  if (map && map.setBearing) {
+      map.setBearing(0, { animate: true, duration: 500 });
+  }
+  
+  // 更新按鈕
+  if (btn) {
+      btn.textContent = '📱 跟隨裝置方向';
+      btn.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
+      btn.classList.remove('active');
+  }
+  
+  // 隱藏指北針
+  hideCompass();
+  
+  showToast('🛑 已停止跟隨裝置方向', 'info');
+  console.log('✅ 方向跟隨已停止');
 }
 
 
@@ -5251,21 +5373,21 @@ function handleDeviceOrientation(event) {
     }
 }
 
-// 🔧 修正版：更新地圖方向 - 加入平滑動畫
+// 🔧 修正版：更新地圖方向 - 更平滑的動畫
 function updateMapBearing(bearing) {
-    if (!map) return;
-    
-    try {
-        if (map.setBearing) {
-            // 🔧 修正：加入平滑動畫選項
-            map.setBearing(bearing, {
-                animate: true,
-                duration: 300 // 300ms 平滑動畫
-            });
-        }
-    } catch (error) {
-        console.error('❌ 更新地圖方向失敗:', error);
-    }
+  if (!map) return;
+  
+  try {
+      if (map.setBearing) {
+          // 🔧 修正：使用更短的動畫時間，讓跟隨更即時
+          map.setBearing(bearing, {
+              animate: true,
+              duration: 200 // 從 300ms 降到 200ms
+          });
+      }
+  } catch (error) {
+      console.error('❌ 更新地圖方向失敗:', error);
+  }
 }
 
 
