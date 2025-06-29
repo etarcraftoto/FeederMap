@@ -683,6 +683,7 @@ body {
 }
 
 /* 地圖旋轉控制樣式 */
+/* 地圖旋轉控制樣式 - 簡化版 */
 .rotation-controls {
     position: absolute;
     bottom: 120px;
@@ -694,7 +695,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    min-width: 160px;
+    min-width: 140px; /* 縮小寬度 */
     z-index: 1000;
 }
 
@@ -1370,14 +1371,14 @@ body {
 				</div>
 				
 				<!-- 簡化：旋轉控制 - 只保留跟隨方向 -->
+	<!-- 簡化：旋轉控制 - 只保留跟隨方向 -->
 				<div class="rotation-controls" id="rotationControls">
 					<div class="compass-display" id="compassDisplay">方位: 0°</div>
-					<button class="rotation-btn" onclick="resetMapRotation()">🧭 重置方向</button>
 					<button class="rotation-btn" id="followHeadingBtn" onclick="toggleFollowHeading()">
 						📱 跟隨裝置方向
 					</button>
 				</div>
-				
+								
 				<!-- 新增：測量工具 -->
 				<div class="measure-controls">
 					<button class="measure-btn" id="measureDistanceBtn" onclick="toggleMeasureDistance()">
