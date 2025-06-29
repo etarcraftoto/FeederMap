@@ -891,6 +891,13 @@ body {
     height: 100vh;
 }
 
+/* 🔧 新增：手機版隱藏全螢幕按鈕 */
+@media (max-width: 768px) {
+    .fullscreen-btn {
+        display: none !important;
+    }
+}
+
 /* 測量工具樣式 */
 .measure-controls {
     position: absolute;
@@ -1149,6 +1156,13 @@ body {
         bottom: 100px !important;
         right: 15px !important;
         transform: scale(0.9);
+    }
+}
+
+/* 🔧 新增：手機版隱藏測量工具 */
+@media (max-width: 768px) {
+    .measure-controls {
+        display: none !important;
     }
 }
 		</style>
@@ -1469,24 +1483,6 @@ body {
 				
 
 
-				
-				
-				<!-- 修改：定位控制按鈕 -->
-				<div class="location-controls">
-					<button id="locateBtn" class="location-btn" onclick="toggleContinuousLocation()">
-						📍 定位
-					</button>
-					<button class="rotation-btn" id="followHeadingBtn" onclick="toggleFollowHeading()">
-						📱 跟隨裝置方向
-					</button>
-					<div id="compass" style="display: none; position: fixed; bottom: 180px; right: 20px; z-index: 1000;">
-						<!-- 指北針內容將由 JavaScript 動態生成 -->
-					</div>
-				</div>
-
-				<!-- 簡化：旋轉控制 - 只保留跟隨方向 -->
-
-								
 				<!-- 新增：測量工具 -->
 				<div class="measure-controls">
 					<button class="measure-btn" id="measureDistanceBtn" onclick="toggleMeasureDistance()">
@@ -1755,7 +1751,31 @@ body {
 				initMobileNavigation();
 				console.log('✅ 地圖初始化完成');
 			}
-			
+
+// 🔧 新增：檢測並隱藏手機版全螢幕按鈕
+function handleFullscreenButtonVisibility() {
+    const fullscreenBtn = document.querySelector('.fullscreen-btn');
+    
+    if (fullscreenBtn) {
+        // 檢測是否為手機裝置
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isSmallScreen = window.innerWidth <= 768;
+        
+        if (isMobile || isSmallScreen) {
+            fullscreenBtn.style.display = 'none';
+            console.log('📱 手機模式：已隱藏全螢幕按鈕');
+        } else {
+            fullscreenBtn.style.display = 'block';
+            console.log('🖥️ 桌面模式：顯示全螢幕按鈕');
+        }
+    }
+}
+
+// 在地圖初始化完成後執行
+handleFullscreenButtonVisibility();
+
+// 監聽視窗大小變化
+window.addEventListener('resize', handleFullscreenButtonVisibility);
 
 			
 			// 新增：台灣地區電力座標原點
