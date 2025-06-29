@@ -10,6 +10,7 @@
 		<script src="https://cdn.jsdelivr.net/npm/leaflet-rotatedmarker@0.2.0/leaflet.rotatedMarker.js"></script>
 		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-compass@1.0.0/dist/leaflet-compass.css">
 		<script src="https://cdn.jsdelivr.net/npm/leaflet-compass@1.0.0/dist/leaflet-compass.js"></script>
+		<script src="https://unpkg.com/leaflet-rotate@0.1.4/dist/leaflet-rotate-src.js"></script>
 		<!-- Leaflet CSS -->
 		<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
 			  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
@@ -1432,15 +1433,15 @@ body {
 					<button class="rotation-btn" id="followHeadingBtn" onclick="toggleFollowHeading()">
 						📱 跟隨裝置方向
 					</button>
-					<div id="compass" onclick="toggleCompass()">
-					<svg class="compass-needle" width="60" height="60" viewBox="0 0 100 100">
-						<circle cx="50" cy="50" r="45" fill="none" stroke="#ddd" stroke-width="2"/>
-						<polygon points="50,10 55,45 50,40 45,45" fill="#ff4444" stroke="#fff" stroke-width="1"/>
-						<polygon points="50,90 55,55 50,60 45,55" fill="#666" stroke="#fff" stroke-width="1"/>
-						<circle cx="50" cy="50" r="8" fill="#333"/>
-						<text x="50" y="8" text-anchor="middle" font-size="12" fill="#333" font-weight="bold">N</text>
-					</svg>
-				</div>
+					<div id="compass" style="display: none;">
+						<svg class="compass-needle" width="60" height="60" viewBox="0 0 100 100">
+							<circle cx="50" cy="50" r="45" fill="none" stroke="#ddd" stroke-width="2"/>
+							<polygon points="50,10 55,45 50,40 45,45" fill="#ff4444" stroke="#fff" stroke-width="1"/>
+							<polygon points="50,90 55,55 50,60 45,55" fill="#666" stroke="#fff" stroke-width="1"/>
+							<circle cx="50" cy="50" r="8" fill="#333"/>
+							<text x="50" y="8" text-anchor="middle" font-size="12" fill="#333" font-weight="bold">N</text>
+						</svg>
+					</div>
 				</div>
 
 				<!-- 簡化：旋轉控制 - 只保留跟隨方向 -->
@@ -5700,13 +5701,14 @@ function handleOrientation(event) {
     var alpha = event.webkitCompassHeading || event.alpha;
     
     if (alpha !== null) {
+        // 將 alpha 值轉換為以正北為 0 度的方位角
         var heading = alpha;
         if (event.alpha !== undefined) {
-            heading = 360 - alpha;
+            heading = 360 - alpha; // 對於使用 alpha 的設備，需要反轉方向
         }
         
-        // 平滑處理方向變化
-        if (lastHeading === null || Math.abs(heading - lastHeading) > 2) {
+        // 如果是第一次獲取方向或方向變化超過1度，才更新地圖
+        if (lastHeading === null || Math.abs(heading - lastHeading) > 1) {
             rotateMap(heading);
             lastHeading = heading;
         }
@@ -5716,15 +5718,20 @@ function handleOrientation(event) {
 function rotateMap(heading) {
     currentBearing = heading;
     
-    // 旋轉地圖
+    // 旋轉地圖 - 需要 leaflet-rotate 插件
     if (map.setBearing) {
         map.setBearing(heading);
     }
     
-    // 旋轉指北針
+    // 旋轉指北針針頭
     const needle = compass.querySelector('.compass-needle');
     if (needle) {
         needle.style.transform = `rotate(${-heading}deg)`;
+    }
+    
+    // 如果沒有針頭元素，直接旋轉整個指北針
+    if (!needle) {
+        compass.style.transform = `rotate(${-heading}deg)`;
     }
 }
 
@@ -5765,6 +5772,7 @@ function toggleCompass() {
 }
 
 // 點擊指北針重置方向
+compass.addEventListener('click', toggleCompass);
 compass.addEventListener('dblclick', function() {
     if (isCompassActive) {
         rotateMap(0);
