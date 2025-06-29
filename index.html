@@ -1117,6 +1117,40 @@ body {
         opacity: 0.8;
     }
 }
+
+/* 🔧 新增：指北針樣式 */
+#compass {
+    position: fixed !important;
+    bottom: 180px !important;
+    right: 20px !important;
+    z-index: 1000 !important;
+    pointer-events: none;
+    user-select: none;
+}
+
+#compass > div {
+    animation: compassFadeIn 0.3s ease-out;
+}
+
+@keyframes compassFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* 手機版指北針調整 */
+@media (max-width: 768px) {
+    #compass {
+        bottom: 100px !important;
+        right: 15px !important;
+        transform: scale(0.9);
+    }
+}
 		</style>
 	</head>
 	<body>
@@ -1445,14 +1479,8 @@ body {
 					<button class="rotation-btn" id="followHeadingBtn" onclick="toggleFollowHeading()">
 						📱 跟隨裝置方向
 					</button>
-					<div id="compass" style="display: none;">
-						<svg class="compass-needle" width="60" height="60" viewBox="0 0 100 100">
-							<circle cx="50" cy="50" r="45" fill="none" stroke="#ddd" stroke-width="2"/>
-							<polygon points="50,10 55,45 50,40 45,45" fill="#ff4444" stroke="#fff" stroke-width="1"/>
-							<polygon points="50,90 55,55 50,60 45,55" fill="#666" stroke="#fff" stroke-width="1"/>
-							<circle cx="50" cy="50" r="8" fill="#333"/>
-							<text x="50" y="8" text-anchor="middle" font-size="12" fill="#333" font-weight="bold">N</text>
-						</svg>
+					<div id="compass" style="display: none; position: fixed; bottom: 180px; right: 20px; z-index: 1000;">
+						<!-- 指北針內容將由 JavaScript 動態生成 -->
 					</div>
 				</div>
 
@@ -4924,50 +4952,47 @@ map.on('rotate', function() {
 
 // 更新指南針顯示
 // 🔧 修正版：羅盤顯示更新
+// 🔧 修正版：更新指北針顯示
 function updateCompassDisplay(heading) {
-    const compassElement = document.querySelector('.compass-display');
+    const compassElement = document.getElementById('compass');
     if (!compassElement) return;
     
-    // 🆕 方向名稱對應
+    // 方向名稱對應
     const getDirectionName = (angle) => {
-        const directions = [
-            { name: '北', range: [0, 11.25] },
-            { name: '北北東', range: [11.25, 33.75] },
-            { name: '東北', range: [33.75, 56.25] },
-            { name: '東北東', range: [56.25, 78.75] },
-            { name: '東', range: [78.75, 101.25] },
-            { name: '東南東', range: [101.25, 123.75] },
-            { name: '東南', range: [123.75, 146.25] },
-            { name: '南南東', range: [146.25, 168.75] },
-            { name: '南', range: [168.75, 191.25] },
-            { name: '南南西', range: [191.25, 213.75] },
-            { name: '西南', range: [213.75, 236.25] },
-            { name: '西南西', range: [236.25, 258.75] },
-            { name: '西', range: [258.75, 281.25] },
-            { name: '西北西', range: [281.25, 303.75] },
-            { name: '西北', range: [303.75, 326.25] },
-            { name: '北北西', range: [326.25, 348.75] },
-            { name: '北', range: [348.75, 360] }
-        ];
-        
-        for (let dir of directions) {
-            if (angle >= dir.range[0] && angle < dir.range[1]) {
-                return dir.name;
-            }
-        }
-        return '北';
+        const directions = ['北', '北北東', '東北', '東北東', '東', '東南東', '東南', '南南東', '南', '南南西', '西南', '西南西', '西', '西北西', '西北', '北北西'];
+        const index = Math.round(angle / 22.5) % 16;
+        return directions[index];
     };
     
     const directionName = getDirectionName(heading);
     const roundedHeading = Math.round(heading);
     
+    // 更新指北針內容
     compassElement.innerHTML = `
-        <div style="text-align: center; padding: 10px; background: rgba(0,0,0,0.8); color: white; border-radius: 8px;">
-            <div style="font-size: 24px; margin-bottom: 5px;">🧭</div>
-            <div style="font-size: 18px; font-weight: bold;">${roundedHeading}°</div>
-            <div style="font-size: 14px; color: #ffd700;">${directionName}</div>
+        <div style="background: rgba(0, 0, 0, 0.8); color: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 120px;">
+            <div style="position: relative; margin-bottom: 10px;">
+                <svg width="80" height="80" viewBox="0 0 100 100" style="transform: rotate(${-heading}deg); transition: transform 0.3s ease;">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#444" stroke-width="2"/>
+                    <circle cx="50" cy="50" r="35" fill="none" stroke="#666" stroke-width="1"/>
+                    <!-- 指北針 -->
+                    <polygon points="50,5 55,45 50,40 45,45" fill="#ff4444" stroke="#fff" stroke-width="1"/>
+                    <polygon points="50,95 55,55 50,60 45,55" fill="#666" stroke="#fff" stroke-width="1"/>
+                    <circle cx="50" cy="50" r="6" fill="#333"/>
+                    <!-- 方向標記 -->
+                    <text x="50" y="12" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">N</text>
+                    <text x="88" y="55" text-anchor="middle" font-size="8" fill="#ccc">E</text>
+                    <text x="50" y="92" text-anchor="middle" font-size="8" fill="#ccc">S</text>
+                    <text x="12" y="55" text-anchor="middle" font-size="8" fill="#ccc">W</text>
+                </svg>
+            </div>
+            <div style="font-size: 18px; font-weight: bold; color: #ffd700; margin-bottom: 5px;">${roundedHeading}°</div>
+            <div style="font-size: 14px; color: #ccc;">${directionName}</div>
+            <div style="font-size: 10px; color: #888; margin-top: 5px;">🧭 指北針</div>
         </div>
     `;
+    
+    // 確保指北針可見
+    compassElement.style.display = 'block';
 }
 
 // 🆕 重置校準
@@ -4982,113 +5007,16 @@ function getCompassDirection(bearing) {
 }
 
 // 新增：跟隨裝置方向功能
-// 主要的切換函數
-// 🔧 修正版：裝置方向跟隨
+// 🔧 修正版：統一的方向跟隨功能
 function toggleFollowHeading() {
     const btn = document.getElementById('followHeadingBtn');
     
     if (isFollowingHeading) {
-        // 停止跟隨
-        isFollowingHeading = false;
-        if (orientationHandler) {
-            window.removeEventListener('deviceorientation', orientationHandler);
-            orientationHandler = null;
-        }
-        btn.textContent = '📱 跟隨裝置方向';
-        btn.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
-        showToast('📱 已停止跟隨裝置方向', 'info');
-        return;
-    }
-    
-    // 檢查裝置支援
-    if (!('DeviceOrientationEvent' in window)) {
-        showToast('❌ 此裝置不支援方向感測', 'error');
-        return;
-    }
-    
-    // 🆕 改善的方向處理函數
-    orientationHandler = function(event) {
-        let heading = null;
-        
-        // 🔧 修正：優先使用 webkitCompassHeading（iOS Safari）
-        if (event.webkitCompassHeading !== undefined) {
-            // iOS Safari: webkitCompassHeading 直接給出磁北角度
-            heading = event.webkitCompassHeading;
-            console.log('📱 使用 iOS webkitCompassHeading:', heading);
-        } 
-        // 🔧 修正：Android Chrome 使用 alpha
-        else if (event.alpha !== null) {
-            // Android Chrome: alpha 是相對於北方的角度
-            heading = event.alpha;
-            
-            // 🆕 Android 角度修正
-            if (/Android/.test(navigator.userAgent)) {
-                // Android 的 alpha 通常需要反向
-                heading = 360 - heading;
-            }
-            
-            console.log('📱 使用 Android alpha (修正後):', heading);
-        }
-        
-        if (heading !== null) {
-            // 🆕 角度標準化 (0-360)
-            heading = ((heading % 360) + 360) % 360;
-            
-            // 🆕 應用磁偏角修正（台灣地區約 -4.5 度）
-            const magneticDeclination = -4.5; // 台灣磁偏角
-            const trueHeading = (heading + magneticDeclination + 360) % 360;
-            
-            console.log(`📊 原始角度: ${heading.toFixed(1)}°, 修正後: ${trueHeading.toFixed(1)}°`);
-            
-            // 🔧 修正：地圖旋轉角度計算
-            // Leaflet 的 bearing 是順時針，0度為北方
-            const mapBearing = trueHeading;
-            
-            // 平滑旋轉
-            if (map && map.setBearing) {
-                map.setBearing(mapBearing);
-            }
-            
-            // 更新羅盤顯示
-            updateCompassDisplay(trueHeading);
-            
-            // 🆕 顯示詳細資訊（每5次更新一次，避免太頻繁）
-            if (Math.random() < 0.2) { // 約20%機率顯示
-                showToast(`🧭 方位: ${trueHeading.toFixed(0)}°`, 'info');
-            }
-        } else {
-            console.warn('⚠️ 無法取得方向資料');
-        }
-    };
-    
-    // 🔧 修正：權限處理
-    const startOrientation = () => {
-        window.addEventListener('deviceorientation', orientationHandler, true);
-        isFollowingHeading = true;
-        btn.textContent = '🔄 停止跟隨';
-        btn.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
-        showToast('📱 開始跟隨裝置方向', 'success');
-    };
-    
-    // iOS 13+ 權限請求
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-            .then(response => {
-                if (response === 'granted') {
-                    startOrientation();
-                } else {
-                    showToast('❌ 需要方向權限才能使用此功能', 'error');
-                }
-            })
-            .catch(err => {
-                console.error('權限請求失敗:', err);
-                showToast('❌ 權限請求失敗', 'error');
-            });
+        stopFollowHeading(btn);
     } else {
-        startOrientation();
+        startFollowHeading(btn);
     }
 }
-
 // 🆕 方向校準功能
 let calibrationOffset = 0;
 
@@ -5121,134 +5049,154 @@ function applyCalibration(heading) {
     return (heading + calibrationOffset + 360) % 360;
 }
 
-// 🆕 開始跟隨裝置方向 - 完整版
+// 🔧 修正版：開始跟隨方向
 async function startFollowHeading(btn) {
-    console.log('🧭 嘗試啟動裝置方向跟隨...');
+    console.log('🧭 啟動裝置方向跟隨...');
     
-    // 檢查瀏覽器支援
+    // 檢查支援性
     if (!window.DeviceOrientationEvent) {
-        showToast('❌ 您的瀏覽器不支援裝置方向感測', 'error');
+        showToast('❌ 您的裝置不支援方向感測', 'error');
         return;
     }
     
     try {
-        // iOS 13+ 需要請求權限
+        // iOS 13+ 權限請求
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-            console.log('📱 iOS 裝置，請求方向權限...');
-            
             const permission = await DeviceOrientationEvent.requestPermission();
-            console.log('🔐 權限結果:', permission);
-            
             if (permission !== 'granted') {
-                showToast('❌ 需要裝置方向權限才能使用此功能', 'error');
+                showToast('❌ 需要方向權限才能使用此功能', 'error');
                 return;
             }
         }
         
-        // 開始監聽
-        isFollowingHeading = true;
-        orientationHandler = handleDeviceOrientationNew;
-        window.addEventListener('deviceorientation', orientationHandler, true);
-        
-        // 更新按鈕狀態
-        if (btn) {
-            btn.classList.add('active');
-            btn.textContent = '📱 停止跟隨';
+        // 清除舊的事件監聽器
+        if (orientationHandler) {
+            window.removeEventListener('deviceorientation', orientationHandler);
         }
         
-        showToast('🧭 開始跟隨裝置方向', 'success');
-        console.log('✅ 裝置方向跟隨已啟動');
+        // 建立新的事件處理器
+        orientationHandler = function(event) {
+            handleDeviceOrientation(event);
+        };
+        
+        // 綁定事件
+        window.addEventListener('deviceorientation', orientationHandler, true);
+        
+        // 更新狀態
+        isFollowingHeading = true;
+        lastHeading = null;
+        
+        // 更新按鈕
+        if (btn) {
+            btn.textContent = '🔄 停止跟隨';
+            btn.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+            btn.classList.add('active');
+        }
+        
+        // 顯示指北針
+        showCompass();
+        
+        showToast('📱 開始跟隨裝置方向', 'success');
+        console.log('✅ 方向跟隨已啟動');
         
     } catch (error) {
-        console.error('❌ 啟動裝置方向跟隨失敗:', error);
+        console.error('❌ 啟動失敗:', error);
         showToast('❌ 啟動失敗: ' + error.message, 'error');
     }
 }
-// 🆕 停止跟隨裝置方向
+
+// 🔧 修正版：顯示指北針
+function showCompass() {
+    const compassElement = document.getElementById('compass');
+    if (compassElement) {
+        compassElement.style.display = 'block';
+        updateCompassDisplay(0); // 初始顯示
+    }
+}
+
+// 🔧 修正版：隱藏指北針
+function hideCompass() {
+    const compassElement = document.getElementById('compass');
+    if (compassElement) {
+        compassElement.style.display = 'none';
+    }
+}
+
+// 🔧 修正版：停止跟隨方向
 function stopFollowHeading(btn) {
     console.log('🛑 停止裝置方向跟隨...');
     
-    isFollowingHeading = false;
-    
+    // 移除事件監聽器
     if (orientationHandler) {
-        window.removeEventListener('deviceorientation', orientationHandler, true);
+        window.removeEventListener('deviceorientation', orientationHandler);
         orientationHandler = null;
     }
+    
+    // 重置狀態
+    isFollowingHeading = false;
+    lastHeading = null;
     
     // 重置地圖方向
     if (map && map.setBearing) {
         map.setBearing(0);
-    } else if (map && map.setRotation) {
-        map.setRotation(0);
     }
     
-    // 更新按鈕狀態
+    // 更新按鈕
     if (btn) {
-        btn.classList.remove('active');
         btn.textContent = '📱 跟隨裝置方向';
+        btn.style.background = 'linear-gradient(135deg, #6c757d, #495057)';
+        btn.classList.remove('active');
     }
     
-    lastHeading = null;
+    // 隱藏指北針
+    hideCompass();
+    
     showToast('🛑 已停止跟隨裝置方向', 'info');
-    console.log('✅ 裝置方向跟隨已停止');
+    console.log('✅ 方向跟隨已停止');
 }
-// 🆕 處理裝置方向事件 - 改良版
-function handleDeviceOrientationNew(event) {
+
+// 🔧 修正版：處理裝置方向事件
+function handleDeviceOrientation(event) {
     if (!isFollowingHeading) return;
     
-    // 取得方向角度
     let heading = null;
     
-    // iOS 使用 webkitCompassHeading
+    // 優先使用 webkitCompassHeading（iOS）
     if (event.webkitCompassHeading !== undefined) {
         heading = event.webkitCompassHeading;
-        console.log('📱 iOS 方向:', heading);
-    }
-    // Android 和其他平台使用 alpha
+    } 
+    // 使用 alpha（Android）
     else if (event.alpha !== null) {
-        heading = 360 - event.alpha; // 轉換為正北方向
-        console.log('🤖 Android 方向:', heading);
+        heading = event.alpha;
+        // Android 角度修正
+        if (/Android/.test(navigator.userAgent)) {
+            heading = 360 - heading;
+        }
     }
     
     if (heading === null) {
-        console.warn('⚠️ 無法取得裝置方向');
+        console.warn('⚠️ 無法取得方向資料');
         return;
     }
     
-    // 正規化角度 (0-360)
+    // 標準化角度 (0-360)
     heading = ((heading % 360) + 360) % 360;
     
-    // 只有當方向變化超過閾值時才更新
-    if (lastHeading === null || Math.abs(heading - lastHeading) > headingThreshold) {
+    // 平滑化處理：只有變化超過 2 度才更新
+    if (lastHeading === null || Math.abs(heading - lastHeading) > 2) {
         updateMapBearing(heading);
-        lastHeading = heading;
-        
-        // 更新指南針顯示
         updateCompassDisplay(heading);
+        lastHeading = heading;
     }
 }
-// 🆕 更新地圖方向 - 兼容版
+
+// 🔧 修正版：更新地圖方向
 function updateMapBearing(bearing) {
     if (!map) return;
     
     try {
-        // 方法1: 使用 leaflet-rotate 插件的 setBearing
-        if (typeof map.setBearing === 'function') {
+        if (map.setBearing) {
             map.setBearing(bearing);
-            console.log(`🧭 地圖方向已更新: ${bearing.toFixed(1)}°`);
-        }
-        // 方法2: 使用 setRotation (某些版本)
-        else if (typeof map.setRotation === 'function') {
-            map.setRotation(bearing);
-            console.log(`🧭 地圖旋轉已更新: ${bearing.toFixed(1)}°`);
-        }
-        // 方法3: 手動旋轉地圖容器 (備用方案)
-        else {
-            const mapContainer = map.getContainer();
-            if (mapContainer) {
-                mapContainer.style.transform = `rotate(${bearing}deg)`;
-                console.log(`🧭 容器旋轉已更新: ${bearing.toFixed(1)}°`);
-            }
         }
     } catch (error) {
         console.error('❌ 更新地圖方向失敗:', error);
@@ -5995,151 +5943,7 @@ window.addEventListener('resize', function() {
         if (map) map.invalidateSize();
     }, 100);
 });
-var compass = document.querySelector('#compass');
-var isCompassActive = false;
-var lastHeading = null;
-var currentBearing = 0;
 
-function handleOrientation(event) {
-    if (!isCompassActive) return;
-    
-    var alpha = event.webkitCompassHeading || event.alpha;
-    
-    if (alpha !== null) {
-        // 將 alpha 值轉換為以正北為 0 度的方位角
-        var heading = alpha;
-        if (event.alpha !== undefined) {
-            heading = 360 - alpha; // 對於使用 alpha 的設備，需要反轉方向
-        }
-        
-        // 如果是第一次獲取方向或方向變化超過1度，才更新地圖
-        if (lastHeading === null || Math.abs(heading - lastHeading) > 1) {
-            rotateMap(heading);
-            lastHeading = heading;
-        }
-    }
-}
-
-function rotateMap(heading) {
-    currentBearing = heading;
-    
-    // 旋轉地圖 - 需要 leaflet-rotate 插件
-    if (map.setBearing) {
-        map.setBearing(heading);
-    }
-    
-    // 旋轉指北針針頭
-    const needle = compass.querySelector('.compass-needle');
-    if (needle) {
-        needle.style.transform = `rotate(${-heading}deg)`;
-    }
-    
-    // 如果沒有針頭元素，直接旋轉整個指北針
-    if (!needle) {
-        compass.style.transform = `rotate(${-heading}deg)`;
-    }
-}
-
-function toggleCompass() {
-    isCompassActive = !isCompassActive;
-    
-    if (isCompassActive) {
-        compass.classList.add('active');
-        compass.style.display = 'block';
-        
-        if (window.DeviceOrientationEvent) {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(response => {
-                        if (response === 'granted') {
-                            window.addEventListener("deviceorientation", handleOrientation, true);
-                        } else {
-                            alert("無法獲取設備方向權限");
-                            isCompassActive = false;
-                            compass.classList.remove('active');
-                        }
-                    })
-                    .catch(console.error);
-            } else {
-                window.addEventListener("deviceorientation", handleOrientation, true);
-            }
-        } else {
-            alert("您的設備不支持方向感應");
-            isCompassActive = false;
-            compass.classList.remove('active');
-        }
-    } else {
-        compass.classList.remove('active');
-        rotateMap(0); // 重置地圖方向
-        window.removeEventListener("deviceorientation", handleOrientation, true);
-        lastHeading = null;
-    }
-}
-
-// 點擊指北針重置方向
-compass.addEventListener('click', toggleCompass);
-compass.addEventListener('dblclick', function() {
-    if (isCompassActive) {
-        rotateMap(0);
-    }
-});
-
-
-// 🆕 測試裝置方向支援
-function testDeviceOrientation() {
-    console.log('🧪 測試裝置方向支援...');
-    
-    const testResults = {
-        deviceOrientationSupport: 'DeviceOrientationEvent' in window,
-        permissionAPI: typeof DeviceOrientationEvent.requestPermission === 'function',
-        userAgent: navigator.userAgent,
-        isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent),
-        isAndroid: /Android/.test(navigator.userAgent)
-    };
-    
-    console.table(testResults);
-    
-    // 顯示測試結果
-    const message = `🧪 裝置方向測試結果：\n\n` +
-                   `📱 裝置方向支援: ${testResults.deviceOrientationSupport ? '✅' : '❌'}\n` +
-                   `🔐 權限 API: ${testResults.permissionAPI ? '✅' : '❌'}\n` +
-                   `🍎 iOS 裝置: ${testResults.isIOS ? '✅' : '❌'}\n` +
-                   `🤖 Android 裝置: ${testResults.isAndroid ? '✅' : '❌'}`;
-    
-    alert(message);
-    
-    return testResults;
-}
-
-// 🆕 手動測試方向事件
-function startOrientationTest() {
-    let testCount = 0;
-    const maxTests = 10;
-    
-    const testHandler = function(event) {
-        testCount++;
-        console.log(`🧪 測試 ${testCount}/${maxTests}:`, {
-            alpha: event.alpha,
-            beta: event.beta,
-            gamma: event.gamma,
-            webkitCompassHeading: event.webkitCompassHeading,
-            absolute: event.absolute
-        });
-        
-        if (testCount >= maxTests) {
-            window.removeEventListener('deviceorientation', testHandler);
-            console.log('✅ 方向測試完成');
-            showToast('✅ 方向測試完成，請查看控制台', 'success');
-        }
-    };
-    
-    window.addEventListener('deviceorientation', testHandler);
-    showToast('🧪 開始 10 秒方向測試...', 'info');
-    
-    setTimeout(() => {
-        window.removeEventListener('deviceorientation', testHandler);
-    }, 10000);
-}
 		  </script>
 	  </body>
 	  </html>
