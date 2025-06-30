@@ -623,7 +623,7 @@ body {
 /* 定位按鈕樣式 */
 .location-controls {
     position: absolute;
-    top: 60px;
+    bottom: 20px;
     right: 10px;
     z-index: 1000;
     display: flex;
@@ -960,10 +960,11 @@ body {
     }
 		
     #compass {
-        bottom: 120px !important;  /* 🔧 調整位置避免遮擋按鈕 */
+        bottom: 110px !important;
         right: 10px !important;
-        transform: scale(0.85);    /* 🔧 稍微縮小 */
+        transform: scale(0.75);    /* 🔧 進一步縮小到 75% */
         transform-origin: bottom right;
+        z-index: 1000 !important;
     }
 	#compass {
         z-index: 1000 !important;  /* 🔧 提高指北針層級 */
@@ -1090,6 +1091,10 @@ body {
     
     .map-container {
         position: relative;
+    }
+	#compass {
+        transform: scale(0.9);     /* 🔧 桌面版縮小到 90% */
+        transform-origin: bottom right;
     }
 }
 
@@ -5043,8 +5048,7 @@ map.on('rotate', function() {
 });
 
 // 更新指南針顯示
-// 🔧 修正版：羅盤顯示更新
-// 🔧 修正版：更平滑的指北針更新
+// 🔧 修正版：簡化指北針 - 只保留方向盤
 function updateCompassDisplay(heading) {
     const compassElement = document.getElementById('compass');
     if (!compassElement) return;
@@ -5058,25 +5062,24 @@ function updateCompassDisplay(heading) {
     const directionName = getDirectionName(heading);
     const roundedHeading = Math.round(heading);
     
-    // 🔧 修正：增加更平滑的過渡效果
+    // 🔧 修正：大幅簡化，只保留方向盤
     compassElement.innerHTML = `
-        <div style="background: rgba(0, 0, 0, 0.8); color: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 120px;">
-            <div style="position: relative; margin-bottom: 10px;">
-                <svg width="80" height="80" viewBox="0 0 100 100" style="transform: rotate(${-heading}deg); transition: transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);">
-                    <circle cx="50" cy="50" r="45" fill="none" stroke="#444" stroke-width="2"/>
-                    <circle cx="50" cy="50" r="35" fill="none" stroke="#666" stroke-width="1"/>
-                    <polygon points="50,5 55,45 50,40 45,45" fill="#ff4444" stroke="#fff" stroke-width="1"/>
-                    <polygon points="50,95 55,55 50,60 45,55" fill="#666" stroke="#fff" stroke-width="1"/>
-                    <circle cx="50" cy="50" r="6" fill="#333"/>
-                    <text x="50" y="12" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">N</text>
-                    <text x="88" y="55" text-anchor="middle" font-size="8" fill="#ccc">E</text>
-                    <text x="50" y="92" text-anchor="middle" font-size="8" fill="#ccc">S</text>
-                    <text x="12" y="55" text-anchor="middle" font-size="8" fill="#ccc">W</text>
+        <div style="background: rgba(0, 0, 0, 0.7); color: white; padding: 8px; border-radius: 8px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">
+            <div style="position: relative; margin-bottom: 5px;">
+                <svg width="50" height="50" viewBox="0 0 100 100" style="transform: rotate(${-heading}deg); transition: transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);">
+                    <!-- 外圈 -->
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#555" stroke-width="2"/>
+                    <!-- 指北針 -->
+                    <polygon points="50,8 54,45 50,40 46,45" fill="#ff4444" stroke="#fff" stroke-width="1"/>
+                    <polygon points="50,92 54,55 50,60 46,55" fill="#666" stroke="#fff" stroke-width="1"/>
+                    <!-- 中心點 -->
+                    <circle cx="50" cy="50" r="4" fill="#333"/>
+                    <!-- 方向標記 -->
+                    <text x="50" y="15" text-anchor="middle" font-size="12" fill="#fff" font-weight="bold">N</text>
                 </svg>
             </div>
-            <div style="font-size: 18px; font-weight: bold; color: #ffd700; margin-bottom: 5px;">${roundedHeading}°</div>
-            <div style="font-size: 14px; color: #ccc;">${directionName}</div>
-            <div style="font-size: 10px; color: #888; margin-top: 5px;">🧭 指北針</div>
+            <div style="font-size: 12px; font-weight: bold; color: #ffd700;">${roundedHeading}°</div>
+            <div style="font-size: 10px; color: #ccc;">${directionName}</div>
         </div>
     `;
     
@@ -5971,8 +5974,7 @@ function getOverlayDisplayName(layerName) {
 
 
 // 🆕 手機版導航功能
-// 🔧 修正版：手機版導航功能
-// 🔧 修正版：手機版導航功能 - 保持圖層控制項
+// 🔧 修正版：手機版導航功能 - 改善資訊頁面處理
 function initMobileNavigation() {
     const navTabs = document.querySelectorAll('.nav-tab');
     const sidebar = document.querySelector('.sidebar');
@@ -6002,9 +6004,10 @@ function initMobileNavigation() {
                         break;
                         
                     case 'controls':
+                        // 🔧 修正：確保恢復原始控制面板內容
+                        restoreOriginalContent();
                         mapContainer.style.display = 'none';
                         sidebar.style.display = 'block';
-                        // 🔧 修正：不要重置側邊欄內容，保持圖層控制項
                         break;
                         
                     case 'info':
@@ -6083,13 +6086,26 @@ function handleFileInput(event) {
     reader.readAsText(file);
 }
 // 🆕 資訊面板功能
-// 🔧 修正版：資訊面板
+// 🔧 修正版：資訊面板 - 不覆蓋原內容
 function showInfoPanel() {
     const sidebar = document.querySelector('.sidebar');
     
+    // 🔧 重要修正：先隱藏原內容，而不是替換
+    const originalContent = sidebar.innerHTML;
+    
+    // 暫存原內容到 data 屬性
+    sidebar.setAttribute('data-original-content', originalContent);
+    
     const infoContent = `
         <div style="padding: 20px; background: white; height: 100%; overflow-y: auto;">
-            <h3 style="color: #2c3e50; margin-bottom: 20px;">📋 系統資訊</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="color: #2c3e50; margin: 0;">📋 系統資訊</h3>
+                <button onclick="restoreOriginalContent()" 
+                        style="background: #6c757d; color: white; border: none; padding: 5px 10px; 
+                               border-radius: 4px; cursor: pointer; font-size: 12px;">
+                    ✕ 關閉
+                </button>
+            </div>
             
             <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                 <h4 style="margin: 0 0 10px 0; color: #495057;">🔧 版本資訊</h4>
@@ -6136,6 +6152,22 @@ function showInfoPanel() {
     
     sidebar.innerHTML = infoContent;
 }
+
+// 🆕 新增：恢復原始內容函數
+function restoreOriginalContent() {
+    const sidebar = document.querySelector('.sidebar');
+    const originalContent = sidebar.getAttribute('data-original-content');
+    
+    if (originalContent) {
+        sidebar.innerHTML = originalContent;
+        sidebar.removeAttribute('data-original-content');
+        
+        // 🔧 重要：重新初始化控制項
+        reinitializeControls();
+        
+        console.log('✅ 已恢復原始控制面板內容');
+    }
+}
 // 🆕 切換到地圖標籤
 function switchToMapTab() {
     const mapTab = document.querySelector('[data-tab="map"]');
@@ -6143,8 +6175,12 @@ function switchToMapTab() {
         mapTab.click();
     }
 }
-// 🆕 切換到控制面板標籤
+// 🔧 修正版：切換到控制面板
 function switchToControlsTab() {
+    // 先恢復原始內容
+    restoreOriginalContent();
+    
+    // 然後切換到控制標籤
     const controlsTab = document.querySelector('[data-tab="controls"]');
     if (controlsTab) {
         controlsTab.click();
