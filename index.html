@@ -716,17 +716,20 @@ body {
     margin-bottom: 5px;
     font-weight: bold;
 }
-
+/* 🔧 修正版：按鈕樣式 - 確保 active 狀態正確顯示 */
 .rotation-btn {
     background: white;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+    border: 2px solid #ddd;
+    color: #333;
     padding: 8px 12px;
-    font-size: 12px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: center;
-    white-space: nowrap;
+    transition: all 0.3s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .rotation-btn:hover {
@@ -736,11 +739,18 @@ body {
 }
 
 .rotation-btn.active {
-    background: #007bff;
-    color: white;
-    border-color: #007bff;
+    background: #007bff !important;
+    color: white !important;
+    border-color: #0056b3 !important;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
 }
 
+/* 🔧 特別處理跟隨方向按鈕的啟用狀態 */
+#followHeadingBtn.active {
+    background: #007bff !important;
+    border-color: #0056b3 !important;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
 /* 圖層切換增強樣式 */
 .layer-switcher-compact {
     position: absolute;
@@ -1030,7 +1040,12 @@ body {
     }
     
     /* 觸控優化 */
-    .control-btn,
+    .control-btn {
+        padding: 12px 16px;
+        font-size: 14px;
+        min-height: 44px; /* 🔧 確保觸控友好的最小高度 */
+        -webkit-touch-callout: none; /* 🔧 禁用長按選單 */
+    }
     .measure-btn,
     .load-feeder-btn {
         min-height: 44px;
@@ -1197,6 +1212,42 @@ body {
     .measure-controls {
         display: none !important;
     }
+}
+
+/* 🔧 修正版：按鈕樣式 - 避免反白問題 */
+.control-btn {
+    background: #fff;
+    border: 2px solid #ddd;
+    color: #333;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    user-select: none; /* 🔧 防止文字選取 */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-tap-highlight-color: transparent; /* 🔧 移除點擊高亮 */
+}
+
+.control-btn:hover {
+    background: #f8f9fa;
+    border-color: #007bff;
+    transform: translateY(-1px);
+}
+
+.control-btn.active {
+    background: #007bff !important;
+    color: white !important;
+    border-color: #0056b3 !important;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+/* 🔧 特別處理停止按鈕 */
+.control-btn.active[id="locateBtn"] {
+    background: #dc3545 !important;
+    border-color: #c82333 !important;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
 }
 		</style>
 	</head>
@@ -1857,11 +1908,12 @@ const taiGridArr = [
 ];
 
 // 新增：定位功能
+// 🔧 修正版：跟隨裝置位置功能
 function toggleContinuousLocation() {
-    if (isContinuousLocationEnabled) {
-        disableContinuousLocation();
-    } else {
+    if (!isContinuousLocationEnabled) {
         enableContinuousLocation();
+    } else {
+        disableContinuousLocation();
     }
 }
 
@@ -1875,14 +1927,19 @@ let initialLocationSet = false; // 🆕 追蹤是否已設定初始位置
 function enableContinuousLocation() {
     if (navigator.geolocation) {
         isContinuousLocationEnabled = true;
-        userHasDraggedMap = false; // 🔧 重置拖曳狀態
-        initialLocationSet = false; // 🔧 重置初始位置狀態
+        userHasDraggedMap = false;
+        initialLocationSet = false;
         
+        // 🔧 修正：正確更新按鈕狀態
         const btn = document.getElementById('locateBtn');
-        btn.classList.add('active');
-        btn.textContent = '⏹️ 停止定位';
+        if (btn) {
+            btn.classList.add('active');
+            btn.textContent = '⏹️ 停止定位';
+            btn.style.backgroundColor = '#dc3545'; // 紅色表示啟用狀態
+            btn.style.color = 'white';
+        }
 
-        // 🔧 監聽地圖拖曳事件
+        // 監聽地圖拖曳事件
         map.on('dragstart', function() {
             userHasDraggedMap = true;
             console.log('🖱️ 用戶開始拖曳地圖');
@@ -1894,14 +1951,13 @@ function enableContinuousLocation() {
             const accuracy = position.coords.accuracy;
             const currentPosition = L.latLng(lat, lng);
 
-            // 🔧 提高精度閾值，減少不必要的更新
             if (lastPosition && lastPosition.distanceTo(currentPosition) < Math.max(10, accuracy/2)) {
                 return;
             }
 
             lastPosition = currentPosition;
 
-            // 🔧 更新或創建位置標記
+            // 更新或創建位置標記
             if (!userLocationMarker) {
                 const locationIcon = L.divIcon({
                     html: '<div class="location-marker"><div class="center-dot"></div></div>',
@@ -1917,9 +1973,8 @@ function enableContinuousLocation() {
                 userLocationMarker.setLatLng([lat, lng]);
             }
 
-            // 🔧 修正：只在初次定位或用戶未拖曳時移動地圖
+            // 地圖移動邏輯
             if (!initialLocationSet) {
-                // 首次定位，平滑移動到定位點
                 map.flyTo([lat, lng], Math.max(map.getZoom(), 16), {
                     duration: 2.0,
                     easeLinearity: 0.1
@@ -1927,18 +1982,16 @@ function enableContinuousLocation() {
                 initialLocationSet = true;
                 console.log('📍 初次定位完成');
             } else if (!userHasDraggedMap) {
-                // 用戶未拖曳時，檢查是否需要重新居中
                 const currentCenter = map.getCenter();
                 const distanceFromCenter = currentCenter.distanceTo(currentPosition);
                 
-                if (distanceFromCenter > 200) { // 200公尺閾值
+                if (distanceFromCenter > 200) {
                     map.flyTo([lat, lng], map.getZoom(), {
                         duration: 1.5,
                         easeLinearity: 0.1
                     });
                 }
             }
-            // 🔧 如果用戶已拖曳，則不自動移動地圖
 
         }, function (error) {
             console.error('定位錯誤:', error);
@@ -1949,10 +2002,16 @@ function enableContinuousLocation() {
             maximumAge: 10000,
             timeout: 20000
         });
+        
+        console.log('📍 開始跟隨裝置位置');
+    } else {
+        showToast('❌ 您的裝置不支援定位功能', 'error');
     }
 }
 
 
+
+// 🔧 修正版：停用連續定位
 // 🔧 修正版：停用連續定位
 function disableContinuousLocation() {
     if (watchId) {
@@ -1961,15 +2020,20 @@ function disableContinuousLocation() {
     }
     
     isContinuousLocationEnabled = false;
-    userHasDraggedMap = false; // 🔧 重置狀態
+    userHasDraggedMap = false;
     initialLocationSet = false;
     
-    // 🔧 移除地圖拖曳監聽
+    // 移除地圖拖曳監聽
     map.off('dragstart');
     
+    // 🔧 修正：正確重置按鈕狀態
     const btn = document.getElementById('locateBtn');
-    btn.classList.remove('active');
-    btn.textContent = '📍 跟隨裝置';
+    if (btn) {
+        btn.classList.remove('active');
+        btn.textContent = '📍 跟隨裝置';
+        btn.style.backgroundColor = ''; // 重置背景色
+        btn.style.color = ''; // 重置文字色
+    }
     
     console.log('⏹️ 已停止跟隨裝置位置');
 }
@@ -5128,7 +5192,7 @@ function getCompassDirection(bearing) {
 }
 
 // 新增：跟隨裝置方向功能
-// 🔧 修正版：跟隨裝置方向功能 - 顯示指北針
+// 🔧 修正版：跟隨裝置方向功能 - 修正按鈕 ID
 function toggleFollowHeading() {
     if (!isFollowingHeading) {
         // 開始跟隨方向
@@ -5139,10 +5203,31 @@ function toggleFollowHeading() {
                         if (response === 'granted') {
                             startFollowingHeading();
                         } else {
+                            console.log('用戶拒絕了裝置方向權限');
                             showToast('❌ 需要裝置方向權限才能使用指北針', 'error');
+                            
+                            // 🔧 修正：使用正確的按鈕 ID
+                            const btn = document.getElementById('followHeadingBtn');
+                            if (btn) {
+                                btn.classList.remove('active');
+                                btn.textContent = '🧭 跟隨方向';
+                            }
+                            
+                            hideCompass();
                         }
                     })
-                    .catch(console.error);
+                    .catch(error => {
+                        console.error('權限請求錯誤:', error);
+                        showToast('❌ 無法獲取裝置方向權限', 'error');
+                        
+                        // 🔧 修正：使用正確的按鈕 ID
+                        const btn = document.getElementById('followHeadingBtn');
+                        if (btn) {
+                            btn.classList.remove('active');
+                            btn.textContent = '🧭 跟隨方向';
+                        }
+                        hideCompass();
+                    });
             } else {
                 startFollowingHeading();
             }
@@ -5158,18 +5243,23 @@ function toggleFollowHeading() {
 function startFollowingHeading() {
     isFollowingHeading = true;
     
-    // 🔧 重置緩衝區和狀態
+    // 重置緩衝區和狀態
     headingBuffer = [];
     lastStableHeading = null;
     lastUpdateTime = 0;
     
     window.addEventListener('deviceorientation', handleDeviceOrientationContinuous);
     
-    const btn = document.getElementById('rotationBtn');
-    btn.classList.add('active');
-    btn.textContent = '🧭 停止指北';
+    // 🔧 修正：使用正確的按鈕 ID
+    const btn = document.getElementById('followHeadingBtn');
+    if (btn) {
+        btn.classList.add('active');
+        btn.textContent = '🧭 停止指北';
+        btn.style.backgroundColor = '#007bff'; // 藍色表示啟用狀態
+        btn.style.color = 'white';
+    }
     
-    // 🔧 顯示指北針（只有跟隨方向時才顯示）
+    // 顯示指北針（只有跟隨方向時才顯示）
     showCompass();
     
     console.log('🧭 開始跟隨裝置方向');
@@ -5178,14 +5268,30 @@ function startFollowingHeading() {
 function stopFollowingHeading() {
     isFollowingHeading = false;
     
+    // 移除事件監聽
     window.removeEventListener('deviceorientation', handleDeviceOrientationContinuous);
     
-    const btn = document.getElementById('rotationBtn');
-    btn.classList.remove('active');
-    btn.textContent = '🧭 跟隨方向';
+    // 重置狀態變數
+    headingBuffer = [];
+    lastStableHeading = null;
+    lastUpdateTime = 0;
     
-    // 🔧 隱藏指北針
+    // 🔧 修正：使用正確的按鈕 ID 並重置樣式
+    const btn = document.getElementById('followHeadingBtn');
+    if (btn) {
+        btn.classList.remove('active');
+        btn.textContent = '🧭 跟隨方向';
+        btn.style.backgroundColor = ''; // 重置背景色
+        btn.style.color = ''; // 重置文字色
+    }
+    
+    // 確實隱藏指北針
     hideCompass();
+    
+    // 重置地圖旋轉
+    if (map) {
+        map.setBearing(0);
+    }
     
     console.log('⏹️ 已停止跟隨裝置方向');
 }
@@ -5402,6 +5508,7 @@ function hideCompass() {
     const compassElement = document.getElementById('compass');
     if (compassElement) {
         compassElement.style.display = 'none';
+        console.log('🔧 指北針已隱藏');
     }
 }
 
@@ -5484,20 +5591,35 @@ function handleDeviceOrientation(event) {
 }
 
 // 🔧 修正版：更平滑的地圖方向更新
-function updateMapBearing(bearing) {
-    if (!map) return;
+// 🔧 修正版：更平滑的地圖旋轉
+function updateMapBearing(heading) {
+    if (!map || !isFollowingHeading) return;
     
-    try {
-        if (map.setBearing) {
-            // 🔧 修正：使用更平滑的動畫參數
-            map.setBearing(bearing, {
-                animate: true,
-                duration: 800,  // 🔧 增加動畫時間
-                easeLinearity: 0.1  // 🔧 使用更平滑的緩動函數
-            });
-        }
-    } catch (error) {
-        console.error('❌ 更新地圖方向失敗:', error);
+    const currentBearing = map.getBearing() || 0;
+    let targetBearing = -heading; // 負值因為地圖旋轉方向相反
+    
+    // 🔧 處理角度跨越問題（例如從359度到1度）
+    let bearingDiff = targetBearing - currentBearing;
+    
+    // 標準化角度差異到 -180 到 180 之間
+    while (bearingDiff > 180) bearingDiff -= 360;
+    while (bearingDiff < -180) bearingDiff += 360;
+    
+    // 🔧 只有當角度變化超過閾值時才更新
+    if (Math.abs(bearingDiff) > 0.5) { // 降低閾值到0.5度，更敏感
+        // 🔧 使用更平滑的動畫
+        const smoothBearing = currentBearing + bearingDiff;
+        
+        // 🔧 使用 setBearing 搭配 CSS transition
+        const mapContainer = map.getContainer();
+        mapContainer.style.transition = 'transform 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        
+        map.setBearing(smoothBearing);
+        
+        // 動畫完成後移除 transition
+        setTimeout(() => {
+            mapContainer.style.transition = '';
+        }, 1500);
     }
 }
 
