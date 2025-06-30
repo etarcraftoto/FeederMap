@@ -1247,6 +1247,52 @@ body {
     border-color: #c82333 !important;
     box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
 }
+
+/* 🆕 停電資料樣式 */
+.outage-data-section {
+    animation: slideIn 0.5s ease-out;
+}
+
+/* 🔧 修改：停電資料樣式 - 加入狀態顏色支援 */
+.outage-feeder-item:hover {
+    background: #f8f9fa !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+}
+
+.fault-line-animation {
+    animation: dash 2s linear infinite;
+}
+
+@keyframes dash {
+    to {
+        stroke-dashoffset: -20;
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+/* 🆕 不同狀態的 hover 效果 */
+.outage-feeder-item[style*="border-left: 4px solid #28a745"]:hover {
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.outage-feeder-item[style*="border-left: 4px solid #6c757d"]:hover {
+    box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+}
+
+.outage-feeder-item[style*="border-left: 4px solid #dc3545"]:hover {
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
 		</style>
 	</head>
 	<body>
@@ -1263,6 +1309,31 @@ body {
 		
 		<div class="container">
 			<div class="sidebar">
+			<!-- 🆕 停電資料區域 -->
+			<div class="outage-data-section" style="margin-bottom: 25px; padding: 20px; background: #fff3cd; border-radius: 8px; border: 2px solid #ffc107;">
+				<h3 style="color: #856404; margin-bottom: 15px;">⚡ 停電監控系統</h3>
+				
+				<div id="outageStatus" style="margin-bottom: 15px; padding: 10px; background: #e8f5e8; border-radius: 6px; font-size: 13px;">
+					正在載入停電資料...
+				</div>
+				
+				<!-- 饋線跳脫清單 -->
+				<div id="outageFeederList" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px;">
+					<!-- 動態載入的饋線清單 -->
+				</div>
+				
+				<!-- 操作按鈕 -->
+				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+					<button onclick="refreshOutageData()" 
+							style="padding: 8px 12px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+						🔄 重新整理
+					</button>
+					<button onclick="showOutageMap()" 
+							style="padding: 8px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+						🗺️ 故障地圖
+					</button>
+				</div>
+			</div>
 			<!-- 🆕 饋線選擇區域 -->
 			<div class="feeder-selection-section">
 				<h3>🌐 從雲端載入饋線資料</h3>
@@ -1614,7 +1685,12 @@ body {
 			let isContinuousLocationEnabled = false;
 			let userLocationMarker;
 			let watchId;
-
+			
+			// 🆕 停電資料相關變數
+			let outageData = null;
+			let outageMarkers = [];
+			let faultLineMarkers = [];
+			
 			// 🆕 修改地圖初始化函數
 			// 🔧 修改：整合豐富圖層的地圖初始化函數
 			async function initMap() {
@@ -1823,6 +1899,8 @@ body {
 				
 				// 建立進度條
 				createProgressBar();
+				// 載入停電資料
+				await loadOutageData();
 				
 				updateLoadStatus('地圖初始化完成，請選擇 JSON 檔案或從雲端載入...');
 				
@@ -6026,6 +6104,444 @@ function initMobileOptimizations() {
         });
         
         console.log('📱 手機版優化：已隱藏檔案載入功能');
+    }
+}
+
+
+// 🆕 載入停電資料
+async function loadOutageData() {
+    const outageApiUrl = 'https://script.google.com/macros/s/AKfycbygPaZiiAgb4gqSBP4rYDz8yqXMThTm7r6YyeJoFeRbv4tL57UWlc8YbQ5-SrkVfD-n/exec';
+    
+    try {
+        console.log('🔄 正在載入停電資料...');
+        updateOutageStatus('正在載入停電資料...');
+        
+        const response = await fetch(outageApiUrl);
+        const result = await response.json();
+        
+        if (result && result.data) {
+            outageData = result.data;
+            console.log(`✅ 成功載入 ${outageData.length} 筆停電資料`);
+            
+            // 更新狀態顯示
+            updateOutageStatus(`✅ 已載入 ${outageData.length} 筆停電資料 (${new Date(result.meta.lastUpdate).toLocaleString('zh-TW')})`);
+            
+            // 建立饋線跳脫清單
+            createOutageFeederList();
+            
+            return true;
+        } else {
+            throw new Error('無效的停電資料格式');
+        }
+        
+    } catch (error) {
+        console.error('❌ 載入停電資料失敗:', error);
+        updateOutageStatus('❌ 停電資料載入失敗');
+        return false;
+    }
+}
+
+// 🆕 更新停電狀態顯示
+function updateOutageStatus(message) {
+    const statusElement = document.getElementById('outageStatus');
+    if (statusElement) {
+        statusElement.textContent = message;
+    }
+}
+
+// 🔧 修改：建立饋線跳脫清單 - 加入狀態顏色
+function createOutageFeederList() {
+    const listContainer = document.getElementById('outageFeederList');
+    if (!listContainer || !outageData) return;
+    
+    // 提取所有跳脫的饋線
+    const feederMap = new Map();
+    
+    outageData.forEach(record => {
+        const feeder = record.饋線;
+        if (feeder && feeder.trim() !== '') {
+            if (!feederMap.has(feeder)) {
+                feederMap.set(feeder, []);
+            }
+            feederMap.get(feeder).push(record);
+        }
+    });
+    
+    // 建立清單 HTML
+    let listHtml = '';
+    
+    if (feederMap.size === 0) {
+        listHtml = '<div style="text-align: center; color: #28a745; padding: 20px;">✅ 目前無饋線跳脫</div>';
+    } else {
+        feederMap.forEach((records, feeder) => {
+            const recordCount = records.length;
+            const latestRecord = records[0]; // 假設第一筆是最新的
+            
+            // 🆕 判斷饋線狀態顏色
+            const statusColor = getFeederStatusColor(records);
+            const statusText = getFeederStatusText(records);
+            
+            listHtml += `
+                <div class="outage-feeder-item" style="margin-bottom: 10px; padding: 12px; background: white; border-radius: 6px; border-left: 4px solid ${statusColor}; cursor: pointer;"
+                     onclick="selectOutageFeeder('${feeder}')">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="color: ${statusColor}; font-size: 14px;">⚡ ${feeder}</strong>
+                            <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                                ${latestRecord.時間} | ${latestRecord.處理部門}
+                            </div>
+                            <div style="font-size: 10px; color: ${statusColor}; margin-top: 2px; font-weight: bold;">
+                                ${statusText}
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="background: ${statusColor}; color: white; padding: 2px 6px; border-radius: 12px; font-size: 10px;">
+                                ${recordCount} 筆
+                            </span>
+                        </div>
+                    </div>
+                    <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                        ${latestRecord.故障區間 || '查詢中...'}
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    listContainer.innerHTML = listHtml;
+}
+
+// 🆕 判斷饋線狀態顏色
+function getFeederStatusColor(records) {
+    // 檢查是否有任何記錄有"主幹復電"文字
+    const hasMainPowerRestored = records.some(record => 
+        record.主幹復電 && record.主幹復電.toString().trim() !== ''
+    );
+    
+    if (hasMainPowerRestored) {
+        return '#28a745'; // 綠色 - 主幹已復電
+    }
+    
+    // 檢查是否有任何記錄有"查報完成"文字
+    const hasInvestigationCompleted = records.some(record => 
+        record.查報完成 && record.查報完成.toString().trim() !== ''
+    );
+    
+    if (hasInvestigationCompleted) {
+        return '#6c757d'; // 灰色 - 查報完成
+    }
+    
+    return '#dc3545'; // 紅色 - 故障中
+}
+// 🆕 取得饋線狀態文字
+function getFeederStatusText(records) {
+    // 檢查是否有任何記錄有"主幹復電"文字
+    const hasMainPowerRestored = records.some(record => 
+        record.主幹復電 && record.主幹復電.toString().trim() !== ''
+    );
+    
+    if (hasMainPowerRestored) {
+        return '✅ 主幹已復電';
+    }
+    
+    // 檢查是否有任何記錄有"查報完成"文字
+    const hasInvestigationCompleted = records.some(record => 
+        record.查報完成 && record.查報完成.toString().trim() !== ''
+    );
+    
+    if (hasInvestigationCompleted) {
+        return '📋 查報完成';
+    }
+    
+    return '🔴 故障中';
+}
+// 🔧 修改：選擇停電饋線 - 不自動載入饋線
+function selectOutageFeeder(feeder) {
+    console.log(`🔍 選擇停電饋線: ${feeder}`);
+    
+    // 找到該饋線的所有停電記錄
+    const feederRecords = outageData.filter(record => record.饋線 === feeder);
+    
+    if (feederRecords.length === 0) {
+        showToast(`找不到饋線 ${feeder} 的停電記錄`, 'error');
+        return;
+    }
+    
+    // 只顯示詳細資訊彈窗，不自動載入饋線
+    showFeederOutageDetails(feeder, feederRecords);
+}
+
+// 🆕 顯示饋線停電詳細資訊
+// 🔧 修改：顯示饋線停電詳細資訊 - 加強狀態顯示
+function showFeederOutageDetails(feeder, records) {
+    const statusColor = getFeederStatusColor(records);
+    const statusText = getFeederStatusText(records);
+    
+    let detailHtml = `
+        <div style="max-width: 400px; max-height: 500px; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="color: ${statusColor}; margin: 0;">⚡ ${feeder}</h3>
+                <span style="background: ${statusColor}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
+                    ${statusText}
+                </span>
+            </div>
+    `;
+    
+    records.forEach((record, index) => {
+        const hasCoordinates = record.故障區間圖號座標1 && record.故障區間圖號座標2;
+        
+        // 個別記錄的狀態顏色
+        const recordStatusColor = getRecordStatusColor(record);
+        
+        detailHtml += `
+            <div style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${recordStatusColor};">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <strong style="color: ${recordStatusColor};">事故 #${record.編號}</strong>
+                    <span style="font-size: 11px; color: #666;">${record.時間}</span>
+                </div>
+                
+                <div style="font-size: 12px; line-height: 1.4;">
+                    <p><strong>事故別:</strong> ${record.事故別}</p>
+                    <p><strong>故障區間:</strong> ${record.故障區間 || 'N/A'}</p>
+                    <p><strong>處理部門:</strong> ${record.處理部門}</p>
+                    <p><strong>派查狀態:</strong> ${record.派查狀態 || 'N/A'}</p>
+                    <p><strong>派查人員:</strong> ${record.派查人員 || 'N/A'}</p>
+                    ${record.事故原因 ? `<p><strong>事故原因:</strong> ${record.事故原因}</p>` : ''}
+                    ${record.主幹復電 ? `<p style="color: #28a745;"><strong>✅ 主幹復電:</strong> ${record.主幹復電}</p>` : ''}
+                    ${record.查報完成 ? `<p style="color: #6c757d;"><strong>📋 查報完成:</strong> ${record.查報完成}</p>` : ''}
+                </div>
+                
+                ${hasCoordinates ? `
+                    <button onclick="showFaultLocation('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
+                            style="margin-top: 8px; padding: 6px 12px; background: #ffc107; color: #212529; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                        🗺️ 查看故障位置 (自動載入饋線)
+                    </button>
+                ` : ''}
+            </div>
+        `;
+    });
+    
+    detailHtml += `
+            <div style="margin-top: 15px; text-align: center;">
+                <button onclick="map.closePopup()" 
+                        style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    關閉
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // 在地圖中心顯示彈窗
+    const popup = L.popup({
+        maxWidth: 450,
+        closeButton: true
+    })
+    .setLatLng(map.getCenter())
+    .setContent(detailHtml)
+    .openOn(map);
+}
+
+// 🆕 取得個別記錄的狀態顏色
+function getRecordStatusColor(record) {
+    if (record.主幹復電 && record.主幹復電.toString().trim() !== '') {
+        return '#28a745'; // 綠色 - 主幹已復電
+    }
+    
+    if (record.查報完成 && record.查報完成.toString().trim() !== '') {
+        return '#6c757d'; // 灰色 - 查報完成
+    }
+    
+    return '#dc3545'; // 紅色 - 故障中
+}
+
+// 🆕 顯示故障位置
+// 🔧 修改：顯示故障位置 - 加入自動載入饋線
+function showFaultLocation(coord1, coord2, feeder, faultSection) {
+    try {
+        console.log(`🗺️ 顯示故障位置: ${coord1} - ${coord2}`);
+        
+        // 轉換座標
+        const pos1 = convertPowerCoordinate(coord1);
+        const pos2 = convertPowerCoordinate(coord2);
+        
+        const [lng1, lat1] = pos1.split(',').map(Number);
+        const [lng2, lat2] = pos2.split(',').map(Number);
+        
+        // 清除之前的故障標記
+        clearFaultMarkers();
+        
+        // 建立閃爍標記
+        const marker1 = createBlinkingMarker([lat1, lng1], `故障起點\n${coord1}`, '#ff0000');
+        const marker2 = createBlinkingMarker([lat2, lng2], `故障終點\n${coord2}`, '#ff0000');
+        
+        // 建立連接線
+        const faultLine = L.polyline([[lat1, lng1], [lat2, lng2]], {
+            color: '#ff0000',
+            weight: 6,
+            opacity: 0.8,
+            dashArray: '10,10',
+            className: 'fault-line-animation'
+        }).addTo(map);
+        
+        // 儲存標記以便後續清除
+        faultLineMarkers.push(marker1, marker2, faultLine);
+        
+        // 移動地圖到故障區域
+        const bounds = L.latLngBounds([[lat1, lng1], [lat2, lng2]]);
+        map.fitBounds(bounds, { padding: [50, 50] });
+        
+        // 🆕 自動載入該饋線資料
+        const feederInput = document.getElementById('feederInput');
+        if (feederInput && feederList.includes(feeder)) {
+            feederInput.value = feeder;
+            showToast(`🔄 正在載入饋線 ${feeder}...`, 'info');
+            loadFeederFromCloud();
+        } else if (!feederList.includes(feeder)) {
+            showToast(`⚠️ 饋線 ${feeder} 不在可載入清單中`, 'warning');
+        }
+        
+        // 顯示故障資訊
+        const midLat = (lat1 + lat2) / 2;
+        const midLng = (lng1 + lng2) / 2;
+        
+        const infoPopup = L.popup()
+            .setLatLng([midLat, midLng])
+            .setContent(`
+                <div style="text-align: center;">
+                    <h4 style="color: #dc3545; margin: 0 0 8px 0;">⚡ 故障區間</h4>
+                    <p style="margin: 4px 0;"><strong>饋線:</strong> ${feeder}</p>
+                    <p style="margin: 4px 0;"><strong>區間:</strong> ${faultSection}</p>
+                    <p style="margin: 4px 0; font-size: 11px; color: #666;">
+                        ${coord1} ↔ ${coord2}
+                    </p>
+                    <button onclick="clearFaultMarkers()" 
+                            style="margin-top: 8px; padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                        清除標記
+                    </button>
+                </div>
+            `)
+            .openOn(map);
+        
+        showToast(`🗺️ 已標記 ${feeder} 故障位置`, 'success');
+        
+    } catch (error) {
+        console.error('顯示故障位置失敗:', error);
+        showToast(`❌ 座標轉換失敗: ${error.message}`, 'error');
+    }
+}
+
+// 🆕 建立閃爍標記
+function createBlinkingMarker(position, title, color) {
+    const blinkingIcon = L.divIcon({
+        html: `
+            <div style="
+                width: 20px; 
+                height: 20px; 
+                background: ${color}; 
+                border: 3px solid white; 
+                border-radius: 50%; 
+                box-shadow: 0 0 10px rgba(255,0,0,0.6);
+                animation: blink 1s infinite;
+            "></div>
+            <style>
+                @keyframes blink {
+                    0%, 50% { opacity: 1; transform: scale(1); }
+                    25%, 75% { opacity: 0.3; transform: scale(1.2); }
+                }
+            </style>
+        `,
+        className: 'blinking-marker',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+    });
+    
+    const marker = L.marker(position, { icon: blinkingIcon })
+        .bindPopup(title)
+        .addTo(map);
+    
+    return marker;
+}
+
+// 🆕 清除故障標記
+function clearFaultMarkers() {
+    faultLineMarkers.forEach(marker => {
+        if (map.hasLayer(marker)) {
+            map.removeLayer(marker);
+        }
+    });
+    faultLineMarkers = [];
+    map.closePopup();
+    console.log('🧹 已清除故障標記');
+}
+
+// 🆕 重新整理停電資料
+async function refreshOutageData() {
+    updateOutageStatus('正在重新整理...');
+    const success = await loadOutageData();
+    if (success) {
+        showToast('✅ 停電資料已更新', 'success');
+    } else {
+        showToast('❌ 停電資料更新失敗', 'error');
+    }
+}
+
+// 🆕 顯示停電地圖總覽
+function showOutageMap() {
+    if (!outageData || outageData.length === 0) {
+        showToast('❌ 無停電資料可顯示', 'error');
+        return;
+    }
+    
+    // 清除現有標記
+    clearFaultMarkers();
+    
+    let markerCount = 0;
+    const bounds = L.latLngBounds();
+    
+    outageData.forEach(record => {
+        const coord1 = record.故障區間圖號座標1;
+        const coord2 = record.故障區間圖號座標2;
+        
+        if (coord1 && coord2) {
+            try {
+                const pos1 = convertPowerCoordinate(coord1);
+                const pos2 = convertPowerCoordinate(coord2);
+                
+                const [lng1, lat1] = pos1.split(',').map(Number);
+                const [lng2, lat2] = pos2.split(',').map(Number);
+                
+                // 建立故障線段
+                const faultLine = L.polyline([[lat1, lng1], [lat2, lng2]], {
+                    color: '#dc3545',
+                    weight: 4,
+                    opacity: 0.7
+                }).addTo(map);
+                
+                // 加入彈窗資訊
+                faultLine.bindPopup(`
+                    <div style="text-align: center;">
+                        <h4 style="color: #dc3545;">⚡ ${record.饋線}</h4>
+                        <p><strong>故障區間:</strong> ${record.故障區間}</p>
+                        <p><strong>時間:</strong> ${record.時間}</p>
+                        <p><strong>處理部門:</strong> ${record.處理部門}</p>
+                    </div>
+                `);
+                
+                faultLineMarkers.push(faultLine);
+                bounds.extend([[lat1, lng1], [lat2, lng2]]);
+                markerCount++;
+                
+            } catch (error) {
+                console.warn(`座標轉換失敗: ${coord1}, ${coord2}`, error);
+            }
+        }
+    });
+    
+    if (markerCount > 0) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+        showToast(`🗺️ 已顯示 ${markerCount} 個故障位置`, 'success');
+    } else {
+        showToast('❌ 無有效座標資料可顯示', 'error');
     }
 }
 
