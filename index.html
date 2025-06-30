@@ -930,17 +930,59 @@ body {
 
 /* 🔧 修正：手機版專用樣式 */
 @media (max-width: 768px) {
+	/* 定位控制按鈕 - 縮小版 */
+		.location-controls {
+			position: fixed;
+			bottom: 20px;
+			right: 15px;
+			z-index: 1000;
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+		}
+		
+		.location-btn {
+			background: #4CAF50;
+			color: white;
+			border: none;
+			padding: 8px 12px;  /* 🔧 從 10px 改為 8px 12px */
+			border-radius: 6px;
+			cursor: pointer;
+			font-size: 12px;    /* 🔧 從 14px 改為 12px */
+			box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+			transition: background 0.3s;
+			min-width: 80px;    /* 🔧 限制最小寬度 */
+			max-width: 100px;   /* 🔧 限制最大寬度 */
+		}
+		
+		.rotation-btn {
+			background: #6c757d;
+			color: white;
+			border: none;
+			padding: 8px 12px;  /* 🔧 從 10px 改為 8px 12px */
+			border-radius: 6px;
+			cursor: pointer;
+			font-size: 12px;    /* 🔧 從 14px 改為 12px */
+			box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+			transition: background 0.3s;
+			min-width: 80px;    /* 🔧 限制最小寬度 */
+			max-width: 100px;   /* 🔧 限制最大寬度 */
+			text-align: center;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		
+		/* 🔧 手機版指北針調整 - 縮小並移動位置 */
+		#compass {
+			bottom: 140px !important;  /* 🔧 調整位置避免遮擋按鈕 */
+			right: 10px !important;
+			transform: scale(0.8);     /* 🔧 縮小指北針 */
+			transform-origin: bottom right;
+		}
+		
     .mobile-nav {
         display: flex !important;
-        background: #2c3e50;
-        justify-content: space-around;
-        padding: 10px 0;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 1000;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
     
     .nav-tab {
@@ -965,14 +1007,14 @@ body {
     }
     
     .container {
-        height: calc(100vh - 60px);
+        height: 100vh;
         margin-top: 60px;
         flex-direction: column;
     }
     
     .sidebar {
         width: 100%;
-        height: 100vh;
+        height: calc(100vh - 60px);
         position: fixed;
         top: 60px;
         left: 0;
@@ -1746,11 +1788,11 @@ body {
 				// 初始化圖層切換事件
 				initializeLayerSwitcher();
 				
-				// 監聽地圖旋轉事件
+				// 🔧 修正：地圖旋轉時自動更新指北針
 				map.on('rotate', function(e) {
-					updateCompassDisplay(e.bearing || 0);
+					const bearing = map.getBearing ? map.getBearing() : 0;
+					updateCompassDisplay(bearing);
 				});
-				
 				// 地圖點選事件 - 重置線段高亮
 				map.on('click', function(e) {
 					resetLineHighlight();
@@ -5008,6 +5050,7 @@ map.on('rotate', function() {
 // 更新指南針顯示
 // 🔧 修正版：羅盤顯示更新
 // 🔧 修正版：更新指北針顯示
+// 🔧 修正版：更新指北針顯示 - 確保正確旋轉
 function updateCompassDisplay(heading) {
     const compassElement = document.getElementById('compass');
     if (!compassElement) return;
@@ -5022,11 +5065,11 @@ function updateCompassDisplay(heading) {
     const directionName = getDirectionName(heading);
     const roundedHeading = Math.round(heading);
     
-    // 更新指北針內容
+    // 🔧 修正：確保指北針正確旋轉
     compassElement.innerHTML = `
         <div style="background: rgba(0, 0, 0, 0.8); color: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 120px;">
             <div style="position: relative; margin-bottom: 10px;">
-                <svg width="80" height="80" viewBox="0 0 100 100" style="transform: rotate(${-heading}deg); transition: transform 0.3s ease;">
+                <svg width="80" height="80" viewBox="0 0 100 100" style="transform: rotate(${-heading}deg); transition: transform 0.5s ease;">
                     <circle cx="50" cy="50" r="45" fill="none" stroke="#444" stroke-width="2"/>
                     <circle cx="50" cy="50" r="35" fill="none" stroke="#666" stroke-width="1"/>
                     <!-- 指北針 -->
@@ -5049,6 +5092,7 @@ function updateCompassDisplay(heading) {
     // 確保指北針可見
     compassElement.style.display = 'block';
 }
+
 
 // 🆕 重置校準
 function resetCalibration() {
@@ -5964,19 +6008,14 @@ function getOverlayDisplayName(layerName) {
 
 // 🆕 手機版導航功能
 // 🔧 修正版：手機版導航功能
+// 🔧 修正版：手機版導航功能 - 保持圖層控制項
 function initMobileNavigation() {
     const navTabs = document.querySelectorAll('.nav-tab');
     const sidebar = document.querySelector('.sidebar');
     const mapContainer = document.querySelector('.map-container');
     
-    // 儲存原始側邊欄內容
-    let originalSidebarContent = null;
-    
     // 只在手機版執行
     if (window.innerWidth <= 768) {
-        // 儲存原始內容
-        originalSidebarContent = sidebar.innerHTML;
-        
         navTabs.forEach(tab => {
             tab.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -5988,59 +6027,31 @@ function initMobileNavigation() {
                 this.classList.add('active');
                 
                 const tabType = this.getAttribute('data-tab');
-                console.log('🔄 切換到標籤:', tabType);
                 
                 switch(tabType) {
                     case 'map':
-                        // 顯示地圖，隱藏側邊欄
                         mapContainer.style.display = 'block';
                         sidebar.style.display = 'none';
-                        // 重新調整地圖大小
                         setTimeout(() => {
-                            if (map) {
-                                map.invalidateSize();
-                                console.log('✅ 地圖大小已調整');
-                            }
+                            if (map) map.invalidateSize();
                         }, 100);
                         break;
                         
                     case 'controls':
-							// 顯示控制面板，隱藏地圖
-							mapContainer.style.display = 'none';
-							sidebar.style.display = 'block';
-							
-							// 🔧 修正：恢復原始內容
-							if (originalSidebarContent) {
-								sidebar.innerHTML = originalSidebarContent;
-								
-								// 🔧 重要：延遲重新初始化所有控制項
-								setTimeout(() => {
-									console.log('🔄 重新初始化控制項...');
-									reinitializeControls();
-								}, 100);
-							}
-							console.log('✅ 已切換到控制面板');
-							break;
+                        mapContainer.style.display = 'none';
+                        sidebar.style.display = 'block';
+                        // 🔧 修正：不要重置側邊欄內容，保持圖層控制項
+                        break;
                         
                     case 'info':
-                        // 顯示資訊面板
                         mapContainer.style.display = 'none';
                         sidebar.style.display = 'block';
                         showInfoPanel();
-                        console.log('✅ 已切換到資訊面板');
                         break;
                 }
             });
         });
     }
-    
-    // 🆕 新增：恢復側邊欄內容的函數
-    window.restoreSidebarContent = function() {
-        if (originalSidebarContent && sidebar) {
-            sidebar.innerHTML = originalSidebarContent;
-            console.log('✅ 側邊欄內容已恢復');
-        }
-    };
 }
 
 // 🆕 新增：重新初始化所有控制項
