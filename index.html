@@ -6325,14 +6325,23 @@ function showFeederOutageDetails(feeder, records) {
 }
 
 // 🆕 桌面版彈窗顯示（保持原有功能）
+// 🔧 修改：桌面版彈窗顯示 - 加入無座標調閱功能
 function showFeederDetailsInPopup(feeder, records, statusColor, statusText) {
     let detailHtml = `
-        <div style="max-width: 400px; max-height: 500px; overflow-y: auto;">
+        <div style="max-width: 450px; max-height: 500px; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <h3 style="color: ${statusColor}; margin: 0;">⚡ ${feeder}</h3>
                 <span style="background: ${statusColor}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
                     ${statusText}
                 </span>
+            </div>
+            
+            <!-- 🆕 快速載入饋線按鈕 -->
+            <div style="margin-bottom: 15px;">
+                <button onclick="loadFeederDirectly('${feeder}')" 
+                        style="width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                    🗺️ 直接載入 ${feeder} 饋線圖
+                </button>
             </div>
     `;
     
@@ -6358,12 +6367,24 @@ function showFeederDetailsInPopup(feeder, records, statusColor, statusText) {
                     ${record.查報完成 ? `<p style="color: #6c757d;"><strong>📋 查報完成:</strong> ${record.查報完成}</p>` : ''}
                 </div>
                 
-                ${hasCoordinates ? `
-                    <button onclick="showFaultLocation('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
-                            style="margin-top: 8px; padding: 6px 12px; background: #ffc107; color: #212529; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">
-                        🗺️ 查看故障位置 (自動載入饋線)
-                    </button>
-                ` : ''}
+                <!-- 🔧 修改：操作按鈕 - 有座標和無座標都能操作 -->
+                <div style="display: grid; grid-template-columns: ${hasCoordinates ? '1fr 1fr' : '1fr'}; gap: 6px; margin-top: 8px;">
+                    ${hasCoordinates ? `
+                        <button onclick="showFaultLocation('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
+                                style="padding: 6px 8px; background: #ffc107; color: #212529; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold;">
+                            📍 故障位置
+                        </button>
+                        <button onclick="loadFeederWithRecord('${feeder}', '${record.故障區間}', ${index})" 
+                                style="padding: 6px 8px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold;">
+                            🗺️ 載入饋線
+                        </button>
+                    ` : `
+                        <button onclick="loadFeederWithRecord('${feeder}', '${record.故障區間}', ${index})" 
+                                style="padding: 8px 12px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;">
+                            🗺️ 載入饋線並查看故障區間
+                        </button>
+                    `}
+                </div>
             </div>
         `;
     });
@@ -6379,7 +6400,7 @@ function showFeederDetailsInPopup(feeder, records, statusColor, statusText) {
     `;
     
     const popup = L.popup({
-        maxWidth: 450,
+        maxWidth: 500,
         closeButton: true
     })
     .setLatLng(map.getCenter())
@@ -6387,7 +6408,7 @@ function showFeederDetailsInPopup(feeder, records, statusColor, statusText) {
     .openOn(map);
 }
 
-// 🆕 在側邊欄顯示饋線詳情（手機版）
+// 🔧 修改：在側邊欄顯示饋線詳情（手機版）- 加入無座標調閱功能
 function showFeederDetailsInSidebar(feeder, records, statusColor, statusText) {
     const sidebar = document.querySelector('.sidebar');
     if (!sidebar) return;
@@ -6434,6 +6455,14 @@ function showFeederDetailsInSidebar(feeder, records, statusColor, statusText) {
                     <div style="font-size: 14px; font-weight: bold; color: #666;">${records[0].處理部門}</div>
                     <div style="font-size: 12px; color: #666;">處理部門</div>
                 </div>
+            </div>
+            
+            <!-- 🆕 快速載入饋線按鈕 -->
+            <div style="margin-bottom: 20px;">
+                <button onclick="loadFeederDirectlyMobile('${feeder}')" 
+                        style="width: 100%; padding: 15px; background: linear-gradient(135deg, #007bff, #0056b3); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: bold; box-shadow: 0 4px 8px rgba(0,123,255,0.3);">
+                    🗺️ 直接載入 ${feeder} 饋線圖
+                </button>
             </div>
         </div>
         
@@ -6497,17 +6526,24 @@ function showFeederDetailsInSidebar(feeder, records, statusColor, statusText) {
                     ` : ''}
                 </div>
                 
-                <!-- 操作按鈕 -->
-                ${hasCoordinates ? `
-                    <button onclick="showFaultLocationMobile('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
-                            style="width: 100%; padding: 12px; background: #ffc107; color: #212529; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold;">
-                        🗺️ 查看故障位置並載入饋線
-                    </button>
-                ` : `
-                    <div style="width: 100%; padding: 12px; background: #f8f9fa; color: #6c757d; border-radius: 8px; text-align: center; font-size: 12px;">
-                        📍 無座標資料
-                    </div>
-                `}
+                <!-- 🔧 修改：操作按鈕 - 有座標和無座標都能操作 -->
+                <div style="display: grid; grid-template-columns: ${hasCoordinates ? '1fr 1fr' : '1fr'}; gap: 8px;">
+                    ${hasCoordinates ? `
+                        <button onclick="showFaultLocationMobile('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
+                                style="padding: 10px; background: #ffc107; color: #212529; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                            📍 故障位置
+                        </button>
+                        <button onclick="loadFeederWithRecordMobile('${feeder}', '${record.故障區間}', ${index})" 
+                                style="padding: 10px; background: #17a2b8; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                            🗺️ 載入饋線
+                        </button>
+                    ` : `
+                        <button onclick="loadFeederWithRecordMobile('${feeder}', '${record.故障區間}', ${index})" 
+                                style="padding: 12px; background: #17a2b8; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold;">
+                            🗺️ 載入饋線並查看故障區間
+                        </button>
+                    `}
+                </div>
             </div>
         `;
     });
@@ -6535,6 +6571,151 @@ function showFeederDetailsInSidebar(feeder, records, statusColor, statusText) {
     
     // 防止背景滾動
     document.body.style.overflow = 'hidden';
+}
+
+// 🆕 直接載入饋線（手機版）
+function loadFeederDirectlyMobile(feeder) {
+    closeFeederDetails();
+    
+    setTimeout(() => {
+        loadFeederDirectly(feeder);
+    }, 300);
+}
+
+// 🆕 直接載入饋線（通用）
+function loadFeederDirectly(feeder) {
+    const feederInput = document.getElementById('feederInput');
+    if (feederInput) {
+        if (feederList.includes(feeder)) {
+            feederInput.value = feeder;
+            showToast(`🔄 正在載入饋線 ${feeder}...`, 'info');
+            loadFeederFromCloud();
+            
+            // 關閉彈窗（如果有的話）
+            if (map.getPopup()) {
+                map.closePopup();
+            }
+        } else {
+            showToast(`⚠️ 饋線 ${feeder} 不在可載入清單中`, 'warning');
+        }
+    }
+}
+// 🆕 載入饋線並標註故障區間（通用）
+function loadFeederWithRecord(feeder, faultSection, recordIndex) {
+    const feederInput = document.getElementById('feederInput');
+    if (feederInput) {
+        if (feederList.includes(feeder)) {
+            feederInput.value = feeder;
+            showToast(`🔄 正在載入饋線 ${feeder}...`, 'info');
+            
+            // 載入饋線後標註故障區間
+            loadFeederFromCloud().then(() => {
+                // 延遲一下讓饋線載入完成
+                setTimeout(() => {
+                    highlightFaultSection(feeder, faultSection, recordIndex);
+                }, 1000);
+            });
+            
+            // 關閉彈窗（如果有的話）
+            if (map.getPopup()) {
+                map.closePopup();
+            }
+        } else {
+            showToast(`⚠️ 饋線 ${feeder} 不在可載入清單中`, 'warning');
+        }
+    }
+}
+// 🆕 標註故障區間（文字搜尋）
+function highlightFaultSection(feeder, faultSection, recordIndex) {
+    if (!faultSection || faultSection === 'N/A') {
+        showToast(`📍 已載入饋線 ${feeder}，請手動查找故障位置`, 'info');
+        return;
+    }
+    
+    console.log(`🔍 搜尋故障區間: ${faultSection}`);
+    
+    // 在地圖上搜尋包含故障區間文字的標記或線段
+    let found = false;
+    
+    // 搜尋所有圖層
+    map.eachLayer(function(layer) {
+        if (layer.getPopup && layer.getPopup()) {
+            const popupContent = layer.getPopup().getContent();
+            if (popupContent && popupContent.includes(faultSection)) {
+                // 找到相關的標記，高亮顯示
+                if (layer.setStyle) {
+                    layer.setStyle({
+                        color: '#ff0000',
+                        weight: 8,
+                        opacity: 1,
+                        dashArray: '10,5'
+                    });
+                }
+                
+                // 移動到該位置
+                if (layer.getBounds) {
+                    map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+                } else if (layer.getLatLng) {
+                    map.setView(layer.getLatLng(), 16);
+                }
+                
+                // 顯示彈窗
+                layer.openPopup();
+                found = true;
+                
+                showToast(`📍 已找到並標註故障區間: ${faultSection}`, 'success');
+                return false; // 停止搜尋
+            }
+        }
+        
+        // 搜尋標記的 tooltip 或其他屬性
+        if (layer.getTooltip && layer.getTooltip()) {
+            const tooltipContent = layer.getTooltip().getContent();
+            if (tooltipContent && tooltipContent.includes(faultSection)) {
+                if (layer.setStyle) {
+                    layer.setStyle({
+                        color: '#ff0000',
+                        weight: 6,
+                        opacity: 1
+                    });
+                }
+                
+                if (layer.getLatLng) {
+                    map.setView(layer.getLatLng(), 16);
+                } else if (layer.getBounds) {
+                    map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+                }
+                
+                layer.openTooltip();
+                found = true;
+                
+                showToast(`📍 已找到並標註故障區間: ${faultSection}`, 'success');
+                return false;
+            }
+        }
+    });
+    
+    if (!found) {
+        showToast(`📍 已載入饋線 ${feeder}，但未找到故障區間 "${faultSection}" 的精確位置`, 'warning');
+        
+        // 創建一個通用的故障區間提示
+        const centerPopup = L.popup()
+            .setLatLng(map.getCenter())
+            .setContent(`
+                <div style="text-align: center;">
+                    <h4 style="color: #dc3545;">⚡ ${feeder}</h4>
+                    <p><strong>故障區間:</strong> ${faultSection}</p>
+                    <p style="font-size: 12px; color: #666;">
+                        請在地圖上手動查找相關位置
+                    </p>
+                    <button onclick="map.closePopup()" 
+                            style="padding: 6px 12px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">
+                        關閉
+                    </button>
+                </div>
+            `)
+            .openOn(map);
+    }
 }
 
 // 🆕 關閉饋線詳情
