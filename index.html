@@ -2120,7 +2120,7 @@ function calculateOffset(block, subBlock, detail, isX) {
 		
 		// 🔧 修正版：處理裝置方向事件 - 修正角度反轉問題
 		let lastHeading = null;
-		const HEADING_THRESHOLD = 1; // 增加方向變化閾值
+		const HEADING_THRESHOLD = 0.3; // 增加方向變化閾值
 		let orientationSupported = false;
 		let permissionGranted = false;
 		
@@ -5247,70 +5247,43 @@ function testOrientationWorking() {
   }
 }
 // 🔧 完全重寫：處理裝置方向事件 - 持續更新版
+// 🔧 修正版：更敏感的方向處理
 function handleDeviceOrientationContinuous(event) {
-  if (!isFollowingHeading) {
-      console.log('🚫 方向跟隨已停用，忽略事件');
-      return;
-  }
-  
-  let heading = null;
-  const timestamp = Date.now();
-  
-  // 記錄原始事件資料
-  console.log('📡 收到方向事件:', {
-      alpha: event.alpha,
-      beta: event.beta,
-      gamma: event.gamma,
-      webkitCompassHeading: event.webkitCompassHeading,
-      absolute: event.absolute,
-      timestamp: timestamp
-  });
-  
-  // 優先使用 webkitCompassHeading（iOS）
-  if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
-      heading = event.webkitCompassHeading;
-      console.log('📱 使用 iOS webkitCompassHeading:', heading);
-  } 
-  // 使用 alpha（Android 和其他）
-  else if (event.alpha !== null && event.alpha !== undefined) {
-      heading = event.alpha;
-      console.log('🤖 使用 Android alpha:', heading);
-  }
-  
-  if (heading === null || heading === undefined) {
-      console.warn('⚠️ 無法取得有效的方向資料');
-      return;
-  }
-  
-  // 標準化角度 (0-360)
-  heading = ((heading % 360) + 360) % 360;
-  
-  // 🔧 重要修正：降低閾值並加入時間間隔檢查
-  const timeSinceLastUpdate = lastHeading ? (timestamp - (lastHeading.timestamp || 0)) : 1000;
-  const headingDiff = lastHeading ? Math.abs(heading - lastHeading.value) : 999;
-  
-  // 更新條件：角度變化超過閾值 OR 超過500ms沒更新
-  const shouldUpdate = (
-      lastHeading === null || 
-      headingDiff > HEADING_THRESHOLD || 
-      timeSinceLastUpdate > 500
-  );
-  
-  if (shouldUpdate) {
-      // 🔧 修正：直接使用方向值，不要反轉
-      updateMapBearing(heading);
-      updateCompassDisplay(heading);
-      
-      // 記錄更新資訊
-      lastHeading = {
-          value: heading,
-          timestamp: timestamp
-      };
-      
-      console.log(`🧭 更新地圖方向: ${heading.toFixed(1)}° (變化: ${headingDiff.toFixed(1)}°, 間隔: ${timeSinceLastUpdate}ms)`);
-  } else {
-      console.log(`🔇 跳過更新: 變化${headingDiff.toFixed(1)}° < 閾值${HEADING_THRESHOLD}°`);
-  }
+    if (!isFollowingHeading) return;
+    
+    let heading = null;
+    const timestamp = Date.now();
+    
+    // 取得方向資料
+    if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+        heading = event.webkitCompassHeading;
+    } else if (event.alpha !== null && event.alpha !== undefined) {
+        heading = event.alpha;
+    }
+    
+    if (heading === null) return;
+    
+    heading = ((heading % 360) + 360) % 360;
+    
+    const timeSinceLastUpdate = lastHeading ? (timestamp - (lastHeading.timestamp || 0)) : 1000;
+    const headingDiff = lastHeading ? Math.abs(heading - lastHeading.value) : 999;
+    
+    // 🔧 修正：更敏感的更新條件
+    const shouldUpdate = (
+        lastHeading === null || 
+        headingDiff > HEADING_THRESHOLD ||  // 🔧 使用更小的閾值
+        timeSinceLastUpdate > 300           // 🔧 更頻繁的強制更新
+    );
+    
+    if (shouldUpdate) {
+        updateMapBearing(heading);
+        updateCompassDisplay(heading);
+        
+        lastHeading = {
+            value: heading,
+            timestamp: timestamp
+        };
+    }
 }
 // 🔧 修正版：顯示指北針
 function showCompass() {
