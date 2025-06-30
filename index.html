@@ -931,56 +931,43 @@ body {
 /* 🔧 修正：手機版專用樣式 */
 @media (max-width: 768px) {
 	/* 定位控制按鈕 - 縮小版 */
-		.location-controls {
-			position: fixed;
-			bottom: 20px;
-			right: 15px;
-			z-index: 1000;
-			display: flex;
-			flex-direction: column;
-			gap: 8px;
-		}
+    .location-controls {
+        position: fixed;
+        bottom: 20px;        /* 🔧 改到底部 */
+        right: 15px;         /* 🔧 保持右側 */
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
 		
-		.location-btn {
-			background: #4CAF50;
-			color: white;
-			border: none;
-			padding: 8px 12px;  /* 🔧 從 10px 改為 8px 12px */
-			border-radius: 6px;
-			cursor: pointer;
-			font-size: 12px;    /* 🔧 從 14px 改為 12px */
-			box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-			transition: background 0.3s;
-			min-width: 80px;    /* 🔧 限制最小寬度 */
-			max-width: 100px;   /* 🔧 限制最大寬度 */
-		}
+    .location-btn, .rotation-btn {
+        background: #4CAF50;
+        color: white;
+        border: none;
+        padding: 6px 10px;   /* 🔧 縮小按鈕 */
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 11px;     /* 🔧 縮小字體 */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transition: background 0.3s;
+        min-width: 70px;     /* 🔧 限制寬度 */
+        max-width: 90px;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 		
-		.rotation-btn {
-			background: #6c757d;
-			color: white;
-			border: none;
-			padding: 8px 12px;  /* 🔧 從 10px 改為 8px 12px */
-			border-radius: 6px;
-			cursor: pointer;
-			font-size: 12px;    /* 🔧 從 14px 改為 12px */
-			box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-			transition: background 0.3s;
-			min-width: 80px;    /* 🔧 限制最小寬度 */
-			max-width: 100px;   /* 🔧 限制最大寬度 */
-			text-align: center;
-			white-space: nowrap;
-			overflow: hidden;
-			text-overflow: ellipsis;
-		}
-		
-		/* 🔧 手機版指北針調整 - 縮小並移動位置 */
-		#compass {
-			bottom: 140px !important;  /* 🔧 調整位置避免遮擋按鈕 */
-			right: 10px !important;
-			transform: scale(0.8);     /* 🔧 縮小指北針 */
-			transform-origin: bottom right;
-		}
-		
+    #compass {
+        bottom: 120px !important;  /* 🔧 調整位置避免遮擋按鈕 */
+        right: 10px !important;
+        transform: scale(0.85);    /* 🔧 稍微縮小 */
+        transform-origin: bottom right;
+    }
+	#compass {
+        z-index: 1000 !important;  /* 🔧 提高指北針層級 */
+    }
     .mobile-nav {
         display: flex !important;
     }
@@ -1877,6 +1864,7 @@ function toggleContinuousLocation() {
 let lastPosition = null;
 const POSITION_THRESHOLD = 5; // 5公尺閾值
 
+// 🔧 修正版：平滑跟隨定位地點
 function enableContinuousLocation() {
     if (navigator.geolocation) {
         isContinuousLocationEnabled = true;
@@ -1887,18 +1875,18 @@ function enableContinuousLocation() {
         watchId = navigator.geolocation.watchPosition(function (position) {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
             const currentPosition = L.latLng(lat, lng);
 
-            // 🔧 新增：檢查距離變化是否超過閾值
-            if (lastPosition && lastPosition.distanceTo(currentPosition) < POSITION_THRESHOLD) {
+            // 🔧 修正：提高精度閾值，減少不必要的更新
+            if (lastPosition && lastPosition.distanceTo(currentPosition) < Math.max(5, accuracy/2)) {
                 console.log('🔇 位置變化太小，跳過更新');
-                return; // 跳過更新
+                return;
             }
 
             lastPosition = currentPosition;
 
             if (!userLocationMarker) {
-                // 創建自定義定位圖標
                 const locationIcon = L.divIcon({
                     html: '<div class="location-marker"><div class="center-dot"></div></div>',
                     className: 'custom-location-icon',
@@ -1910,30 +1898,37 @@ function enableContinuousLocation() {
                     icon: locationIcon
                 }).addTo(map);
             } else {
-                // 🔧 修正：使用平滑移動而非瞬間跳躍
+                // 🔧 修正：使用平滑動畫移動標記
                 userLocationMarker.setLatLng([lat, lng]);
             }
 
-            // 🔧 修正：只在大幅度位置變化時才移動地圖視野
-            if (!lastPosition || lastPosition.distanceTo(currentPosition) > 50) {
-                map.flyTo([lat, lng], 16, {
-                    duration: 1.0, // 增加動畫時間讓移動更平滑
+            // 🔧 修正：地圖視野平滑跟隨定位點
+            const currentCenter = map.getCenter();
+            const distanceFromCenter = currentCenter.distanceTo(currentPosition);
+            
+            // 當定位點距離地圖中心超過一定距離時，平滑移動地圖
+            if (distanceFromCenter > 100) { // 100公尺閾值
+                map.flyTo([lat, lng], Math.max(map.getZoom(), 16), {
+                    duration: 2.0,  // 🔧 增加動畫時間讓移動更平滑
+                    easeLinearity: 0.1,
                     noMoveStart: true
                 });
             }
 
-        }, function () {
-            alert('無法獲取您的位置');
+        }, function (error) {
+            console.error('定位錯誤:', error);
+            showToast('❌ 無法獲取您的位置', 'error');
             disableContinuousLocation();
         }, {
             enableHighAccuracy: true,
-            maximumAge: 10000, // 🔧 修正：增加快取時間減少頻繁更新
-            timeout: 15000
+            maximumAge: 5000,    // 🔧 減少快取時間提高精度
+            timeout: 20000       // 🔧 增加超時時間
         });
     } else {
-        alert('您的瀏覽器不支持地理定位');
+        showToast('❌ 您的瀏覽器不支持地理定位', 'error');
     }
 }
+
 
 // 🔧 修正：在停止定位時重置 lastPosition
 function disableContinuousLocation() {
@@ -5049,13 +5044,11 @@ map.on('rotate', function() {
 
 // 更新指南針顯示
 // 🔧 修正版：羅盤顯示更新
-// 🔧 修正版：更新指北針顯示
-// 🔧 修正版：更新指北針顯示 - 確保正確旋轉
+// 🔧 修正版：更平滑的指北針更新
 function updateCompassDisplay(heading) {
     const compassElement = document.getElementById('compass');
     if (!compassElement) return;
     
-    // 方向名稱對應
     const getDirectionName = (angle) => {
         const directions = ['北', '北北東', '東北', '東北東', '東', '東南東', '東南', '南南東', '南', '南南西', '西南', '西南西', '西', '西北西', '西北', '北北西'];
         const index = Math.round(angle / 22.5) % 16;
@@ -5065,18 +5058,16 @@ function updateCompassDisplay(heading) {
     const directionName = getDirectionName(heading);
     const roundedHeading = Math.round(heading);
     
-    // 🔧 修正：確保指北針正確旋轉
+    // 🔧 修正：增加更平滑的過渡效果
     compassElement.innerHTML = `
         <div style="background: rgba(0, 0, 0, 0.8); color: white; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); min-width: 120px;">
             <div style="position: relative; margin-bottom: 10px;">
-                <svg width="80" height="80" viewBox="0 0 100 100" style="transform: rotate(${-heading}deg); transition: transform 0.5s ease;">
+                <svg width="80" height="80" viewBox="0 0 100 100" style="transform: rotate(${-heading}deg); transition: transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);">
                     <circle cx="50" cy="50" r="45" fill="none" stroke="#444" stroke-width="2"/>
                     <circle cx="50" cy="50" r="35" fill="none" stroke="#666" stroke-width="1"/>
-                    <!-- 指北針 -->
                     <polygon points="50,5 55,45 50,40 45,45" fill="#ff4444" stroke="#fff" stroke-width="1"/>
                     <polygon points="50,95 55,55 50,60 45,55" fill="#666" stroke="#fff" stroke-width="1"/>
                     <circle cx="50" cy="50" r="6" fill="#333"/>
-                    <!-- 方向標記 -->
                     <text x="50" y="12" text-anchor="middle" font-size="10" fill="#fff" font-weight="bold">N</text>
                     <text x="88" y="55" text-anchor="middle" font-size="8" fill="#ccc">E</text>
                     <text x="50" y="92" text-anchor="middle" font-size="8" fill="#ccc">S</text>
@@ -5089,7 +5080,6 @@ function updateCompassDisplay(heading) {
         </div>
     `;
     
-    // 確保指北針可見
     compassElement.style.display = 'block';
 }
 
@@ -5417,21 +5407,22 @@ function handleDeviceOrientation(event) {
     }
 }
 
-// 🔧 修正版：更新地圖方向 - 更平滑的動畫
+// 🔧 修正版：更平滑的地圖方向更新
 function updateMapBearing(bearing) {
-  if (!map) return;
-  
-  try {
-      if (map.setBearing) {
-          // 🔧 修正：使用更短的動畫時間，讓跟隨更即時
-          map.setBearing(bearing, {
-              animate: true,
-              duration: 200 // 從 300ms 降到 200ms
-          });
-      }
-  } catch (error) {
-      console.error('❌ 更新地圖方向失敗:', error);
-  }
+    if (!map) return;
+    
+    try {
+        if (map.setBearing) {
+            // 🔧 修正：使用更平滑的動畫參數
+            map.setBearing(bearing, {
+                animate: true,
+                duration: 800,  // 🔧 增加動畫時間
+                easeLinearity: 0.1  // 🔧 使用更平滑的緩動函數
+            });
+        }
+    } catch (error) {
+        console.error('❌ 更新地圖方向失敗:', error);
+    }
 }
 
 
