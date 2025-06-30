@@ -873,6 +873,37 @@ body {
     background: #e64a19;
 }
 
+/* 🆕 新增：側邊欄切換按鈕 */
+.sidebar-toggle-btn {
+    position: absolute;
+    top: 10px;
+    left: 70px; /* 在全螢幕按鈕右邊 */
+    z-index: 10000;
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    display: none; /* 預設隱藏 */
+}
+
+.sidebar-toggle-btn:hover {
+    background: #1976D2;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.fullscreen-mode .sidebar-toggle-btn {
+    display: block; /* 全螢幕時顯示 */
+}
+
+/* 🔧 修改：全螢幕模式保留左側選單 */
 .fullscreen-mode .header {
     display: none;
 }
@@ -881,17 +912,35 @@ body {
     height: 100vh;
 }
 
+/* 🔧 新增：全螢幕時保留側邊欄，但可以切換顯示/隱藏 */
 .fullscreen-mode .sidebar {
-    position: absolute;
-    left: -320px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 320px;
+    height: 100vh;
+    z-index: 1001;
+    background: white;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.3);
     transition: left 0.3s ease;
+}
+/* 🆕 新增：隱藏側邊欄的狀態 */
+.fullscreen-mode .sidebar.hidden {
+    left: -320px;
 }
 
 .fullscreen-mode .map-container {
     width: 100%;
     height: 100vh;
+    margin-left: 0;
+    transition: margin-left 0.3s ease;
 }
 
+/* 🆕 新增：當側邊欄顯示時，地圖容器向右偏移 */
+.fullscreen-mode .map-container.with-sidebar {
+    margin-left: 320px;
+    width: calc(100% - 320px);
+}
 /* 🔧 新增：手機版隱藏全螢幕按鈕 */
 @media (max-width: 768px) {
     .fullscreen-btn {
