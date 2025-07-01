@@ -7234,370 +7234,366 @@ function showOutageMap() {
     }
 }
 
-// 🆕 裝置方向跟隨功能相關變數
-let isFollowingCompass = false;
-let compassWatchId = null;
-let lastCompassHeading = null;
-let orientationPermissionGranted = false;
+// 🧭 指北針功能整合 - 基於參考程式的有效實現
 
-// 🆕 新增指北針跟隨按鈕到旋轉控制區域
-function addCompassFollowButton() {
-  // 檢查是否已存在按鈕
-  if (document.getElementById('followCompassBtn')) {
+// 🔧 修改原程式的地圖初始化，加入指北針相關變數
+let isCompassActive = false;
+let lastHeading = null;
+
+// 🆕 在地圖初始化後加入指北針 HTML 元素
+function addCompassElements() {
+  // 檢查是否已存在指北針元素
+  if (document.getElementById('compass')) {
       return;
   }
   
-  // 找到旋轉控制區域
-  const rotationControls = document.querySelector('.rotation-controls');
-  if (!rotationControls) {
-      console.warn('找不到旋轉控制區域');
-      return;
-  }
+  // 創建指北針 HTML
+  const compassHTML = `
+      <div id="compass" style="
+          position: absolute;
+          top: 180px;
+          right: 10px;
+          z-index: 1000;
+          background-color: rgba(255, 255, 255, 0.8);
+          border-radius: 50%;
+          padding: 5px;
+          display: none;
+      ">
+          <svg width="100" height="100" viewBox="0 0 100 100">
+              <polygon points="50,0 60,50 50,40 40,50" fill="red" />
+              <polygon points="50,100 60,50 50,60 40,50" fill="black" />
+          </svg>
+      </div>
+  `;
   
-  // 創建指北針跟隨按鈕
-  const compassBtn = document.createElement('button');
-  compassBtn.id = 'followCompassBtn';
-  compassBtn.className = 'rotation-btn';
-  compassBtn.textContent = '🧭 跟隨指北針';
-  compassBtn.onclick = toggleCompassFollow;
+  // 創建控制按鈕 HTML
+  const controlsHTML = `
+      <div id="controls" style="
+          position: absolute;
+          bottom: 200px;
+          right: 20px;
+          z-index: 1000;
+          background-color: rgba(255, 255, 255, 0.8);
+          border-radius: 5px;
+          padding: 5px;
+      ">
+          <button id="toggleCompass" class="control-btn" style="
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              width: 75px;
+              height: 75px;
+              margin: 10px;
+              background-color: white;
+              border: 3px solid #ccc;
+              border-radius: 50%;
+              cursor: pointer;
+              font-size: 50px;
+              color: #333;
+              transition: all 0.3s ease;
+          ">
+              <i class="fas fa-compass"></i>
+          </button>
+      </div>
+  `;
   
-  // 插入到旋轉控制區域
-  rotationControls.appendChild(compassBtn);
+  // 將 HTML 加入到頁面
+  document.body.insertAdjacentHTML('beforeend', compassHTML);
+  document.body.insertAdjacentHTML('beforeend', controlsHTML);
   
-  console.log('✅ 指北針跟隨按鈕已添加');
+  console.log('✅ 指北針 HTML 元素已添加');
 }
 
-// 🆕 切換指北針跟隨功能
-async function toggleCompassFollow() {
-  console.log('🧭 切換指北針跟隨，當前狀態:', isFollowingCompass);
+// 🆕 處理裝置方向變化的核心函數
+function handleOrientation(event) {
+  if (!isCompassActive) return;
   
-  if (!isFollowingCompass) {
-      await enableCompassFollow();
-  } else {
-      disableCompassFollow();
+  let alpha = event.webkitCompassHeading || event.alpha;
+  
+  if (alpha !== null) {
+      // 將 alpha 值轉換為以正北為 0 度的方位角
+      let heading = alpha;
+      if (event.alpha !== undefined && !event.webkitCompassHeading) {
+          heading = 360 - alpha; // 對於使用 alpha 的設備，需要反轉方向
+      }
+      
+      // 如果是第一次獲取方向或方向變化超過1度，才更新地圖
+      if (lastHeading === null || Math.abs(heading - lastHeading) > 1) {
+          rotateMap(heading);
+          lastHeading = heading;
+          console.log(`🧭 方向更新: ${heading.toFixed(1)}°`);
+      }
   }
 }
 
-// 🆕 啟用指北針跟隨功能
-async function enableCompassFollow() {
-  console.log('🧭 嘗試啟用指北針跟隨...');
+// 🆕 旋轉地圖的函數
+function rotateMap(heading) {
+  const compass = document.querySelector('#compass');
   
-  // 檢查裝置方向支援
-  if (!window.DeviceOrientationEvent) {
-      showToast('❌ 您的裝置不支援指北針功能', 'error');
-      return;
-  }
-  
-  try {
-      // 🔧 檢查是否需要權限（iOS 13+）
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          console.log('🔐 需要請求裝置方向權限...');
-          
-          const permission = await DeviceOrientationEvent.requestPermission();
-          if (permission !== 'granted') {
-              showToast('❌ 需要裝置方向權限才能使用指北針功能', 'error');
-              return;
+  // 旋轉地圖（如果支援）
+  if (map && map.setBearing) {
+      try {
+          map.setBearing(heading);
+      } catch (error) {
+          console.warn('地圖旋轉失敗，使用備用方案:', error);
+          // 備用方案：旋轉地圖容器
+          const mapContainer = document.getElementById('map');
+          if (mapContainer) {
+              mapContainer.style.transform = `rotate(${-heading}deg)`;
+              mapContainer.style.transformOrigin = 'center';
+              mapContainer.style.transition = 'transform 0.5s ease-out';
           }
-          
-          orientationPermissionGranted = true;
-          console.log('✅ 裝置方向權限已獲得');
       }
-      
-      // 啟用指北針跟隨
-      isFollowingCompass = true;
-      
-      // 更新按鈕狀態
-      const btn = document.getElementById('followCompassBtn');
-      if (btn) {
-          btn.classList.add('active');
-          btn.textContent = '🛑 停止跟隨';
-          btn.style.backgroundColor = '#dc3545';
-          btn.style.color = 'white';
-      }
-      
-      // 開始監聽裝置方向
-      startCompassWatch();
-      
-      showToast('🧭 已啟用指北針跟隨', 'success');
-      
-  } catch (error) {
-      console.error('啟用指北針跟隨失敗:', error);
-      showToast('❌ 啟用指北針跟隨失敗', 'error');
+  }
+  
+  // 旋轉指北針圖標
+  if (compass) {
+      compass.style.transform = `rotate(${-heading}deg)`;
   }
 }
 
-// 🆕 停用指北針跟隨功能
-function disableCompassFollow() {
-  console.log('🛑 停用指北針跟隨...');
+// 🆕 切換指北針功能的主函數
+function toggleCompass() {
+  console.log('🧭 切換指北針功能，當前狀態:', isCompassActive);
   
-  isFollowingCompass = false;
-  lastCompassHeading = null;
+  isCompassActive = !isCompassActive;
+  const compass = document.querySelector('#compass');
+  const toggleButton = document.getElementById('toggleCompass');
   
-  // 停止監聽裝置方向
-  stopCompassWatch();
-  
-  // 重置按鈕狀態
-  const btn = document.getElementById('followCompassBtn');
-  if (btn) {
-      btn.classList.remove('active');
-      btn.textContent = '🧭 跟隨指北針';
-      btn.style.backgroundColor = '';
-      btn.style.color = '';
-  }
-  
-  showToast('🛑 已停止跟隨指北針', 'info');
-}
-
-// 🆕 開始監聽指北針
-function startCompassWatch() {
-  console.log('🧭 開始監聽指北針...');
-  
-  // 監聽裝置方向事件
-  window.addEventListener('deviceorientationabsolute', handleCompassChange, true);
-  window.addEventListener('deviceorientation', handleCompassChange, true);
-  
-  // 備用方案：使用 Geolocation API 的 heading
-  if (navigator.geolocation) {
-      compassWatchId = navigator.geolocation.watchPosition(
-          handleGeolocationHeading,
-          function(error) {
-              console.warn('地理位置 heading 獲取失敗:', error);
-          },
-          {
-              enableHighAccuracy: true,
-              maximumAge: 1000,
-              timeout: 5000
+  if (isCompassActive) {
+      // 啟用指北針
+      if (compass) compass.style.display = 'block';
+      if (toggleButton) {
+          toggleButton.innerHTML = '<i class="fas fa-compass" style="color: #007bff;"></i>';
+      }
+      
+      // 檢查裝置方向支援
+      if (window.DeviceOrientationEvent) {
+          // 🔧 處理 iOS 13+ 權限請求
+          if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+              console.log('🔐 請求裝置方向權限...');
+              DeviceOrientationEvent.requestPermission()
+                  .then(response => {
+                      if (response === 'granted') {
+                          console.log('✅ 權限已獲得，開始監聽方向');
+                          window.addEventListener("deviceorientation", handleOrientation, true);
+                          showToast('🧭 指北針已啟用', 'success');
+                      } else {
+                          console.warn('❌ 權限被拒絕');
+                          showToast('❌ 需要裝置方向權限才能使用指北針', 'error');
+                          disableCompass();
+                      }
+                  })
+                  .catch(error => {
+                      console.error('權限請求失敗:', error);
+                      showToast('❌ 無法獲取裝置方向權限', 'error');
+                      disableCompass();
+                  });
+          } else {
+              // 不需要權限的裝置
+              console.log('✅ 直接開始監聽方向（無需權限）');
+              window.addEventListener("deviceorientation", handleOrientation, true);
+              showToast('🧭 指北針已啟用', 'success');
           }
-      );
-  }
-}
-
-// 🆕 停止監聽指北針
-function stopCompassWatch() {
-  console.log('🛑 停止監聽指北針...');
-  
-  // 移除裝置方向事件監聽
-  window.removeEventListener('deviceorientationabsolute', handleCompassChange, true);
-  window.removeEventListener('deviceorientation', handleCompassChange, true);
-  
-  // 停止地理位置監聽
-  if (compassWatchId) {
-      navigator.geolocation.clearWatch(compassWatchId);
-      compassWatchId = null;
-  }
-}
-
-// 🆕 處理指北針變化（裝置方向）
-function handleCompassChange(event) {
-  if (!isFollowingCompass) return;
-  
-  let heading = null;
-  
-  // 🔧 獲取指北針方向
-  if (event.webkitCompassHeading !== undefined) {
-      // iOS Safari
-      heading = event.webkitCompassHeading;
-  } else if (event.alpha !== null) {
-      // Android Chrome 和其他瀏覽器
-      heading = 360 - event.alpha;
-  }
-  
-  if (heading !== null) {
-      // 正規化角度到 0-360 範圍
-      heading = ((heading % 360) + 360) % 360;
-      
-      // 🔧 防抖動：只有變化超過閾值才更新
-      const HEADING_THRESHOLD = 2; // 2度閾值
-      
-      if (lastCompassHeading === null || 
-          Math.abs(heading - lastCompassHeading) > HEADING_THRESHOLD) {
-          
-          lastCompassHeading = heading;
-          
-          // 🔧 平滑旋轉地圖
-          rotateMapToHeading(heading);
-          
-          console.log(`🧭 指北針更新: ${heading.toFixed(1)}°`);
-      }
-  }
-}
-
-// 🆕 處理地理位置的 heading（備用方案）
-function handleGeolocationHeading(position) {
-  if (!isFollowingCompass || !position.coords.heading) return;
-  
-  const heading = position.coords.heading;
-  
-  if (heading !== null && heading !== undefined) {
-      // 正規化角度
-      const normalizedHeading = ((heading % 360) + 360) % 360;
-      
-      // 防抖動
-      if (lastCompassHeading === null || 
-          Math.abs(normalizedHeading - lastCompassHeading) > 2) {
-          
-          lastCompassHeading = normalizedHeading;
-          rotateMapToHeading(normalizedHeading);
-          
-          console.log(`🧭 地理位置 heading: ${normalizedHeading.toFixed(1)}°`);
-      }
-  }
-}
-
-// 🆕 平滑旋轉地圖到指定方向
-function rotateMapToHeading(heading) {
-  if (!map || !map.setBearing) {
-      console.warn('地圖不支援旋轉功能');
-      return;
-  }
-  
-  try {
-      // 🔧 使用平滑動畫旋轉
-      map.setBearing(-heading, {
-          duration: 500,  // 0.5秒動畫
-          easing: function(t) {
-              // 使用緩動函數讓旋轉更平滑
-              return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-          }
-      });
-      
-      // 🔧 更新全域旋轉變數（如果存在）
-      if (typeof currentRotation !== 'undefined') {
-          currentRotation = -heading;
-      }
-      
-  } catch (error) {
-      console.warn('地圖旋轉失敗:', error);
-      
-      // 備用方案：使用 CSS 變換
-      const mapContainer = document.getElementById('map');
-      if (mapContainer) {
-          mapContainer.style.transform = `rotate(${-heading}deg)`;
-          mapContainer.style.transformOrigin = 'center';
-          mapContainer.style.transition = 'transform 0.5s ease-out';
-      }
-  }
-}
-
-// 🆕 檢查指北針支援狀態
-function checkCompassSupport() {
-  const support = {
-      deviceOrientation: !!window.DeviceOrientationEvent,
-      geolocationHeading: !!(navigator.geolocation),
-      needsPermission: typeof DeviceOrientationEvent.requestPermission === 'function'
-  };
-  
-  console.log('🧭 指北針支援狀態:', support);
-  return support;
-}
-
-// 🆕 手機版指北針初始化
-function initMobileCompass() {
-  // 只在手機版啟用
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const isSmallScreen = window.innerWidth <= 768;
-  
-  if (isMobile || isSmallScreen) {
-      console.log('📱 初始化手機版指北針功能...');
-      
-      // 檢查支援狀態
-      const support = checkCompassSupport();
-      
-      if (support.deviceOrientation || support.geolocationHeading) {
-          // 添加指北針跟隨按鈕
-          addCompassFollowButton();
-          
-          // 如果需要權限，顯示提示
-          if (support.needsPermission) {
-              console.log('ℹ️ 此裝置需要用戶授權才能使用指北針');
-          }
-          
-          console.log('✅ 手機版指北針功能已初始化');
       } else {
-          console.log('❌ 此裝置不支援指北針功能');
+          console.warn('❌ 裝置不支援方向感應');
+          showToast('❌ 您的裝置不支援方向感應功能', 'error');
+          disableCompass();
       }
+  } else {
+      disableCompass();
   }
 }
 
-// 🆕 處理螢幕方向變化
-function handleOrientationChange() {
-  if (isFollowingCompass) {
-      console.log('📱 螢幕方向已變化，重新校準指北針...');
+// 🆕 停用指北針功能
+function disableCompass() {
+  isCompassActive = false;
+  lastHeading = null;
+  
+  const compass = document.querySelector('#compass');
+  const toggleButton = document.getElementById('toggleCompass');
+  
+  if (compass) compass.style.display = 'none';
+  if (toggleButton) {
+      toggleButton.innerHTML = '<i class="fas fa-compass"></i>';
+  }
+  
+  // 重置地圖旋轉
+  rotateMap(0);
+  
+  // 移除事件監聽
+  window.removeEventListener("deviceorientation", handleOrientation, true);
+  
+  showToast('🛑 指北針已停用', 'info');
+  console.log('🛑 指北針功能已停用');
+}
+
+// 🆕 初始化指北針功能
+function initializeCompass() {
+  console.log('🧭 初始化指北針功能...');
+  
+  // 添加指北針 HTML 元素
+  addCompassElements();
+  
+  // 綁定按鈕事件
+  const toggleButton = document.getElementById('toggleCompass');
+  if (toggleButton) {
+      toggleButton.addEventListener('click', toggleCompass);
+      console.log('✅ 指北針按鈕事件已綁定');
+  } else {
+      console.error('❌ 找不到指北針切換按鈕');
+  }
+  
+  // 添加必要的 CSS 樣式
+  addCompassStyles();
+}
+
+// 🆕 添加指北針相關的 CSS 樣式
+function addCompassStyles() {
+  const style = document.createElement('style');
+  style.textContent = `
+      .control-btn:hover {
+          background-color: #f0f0f0;
+          transform: scale(1.1);
+      }
       
-      // 短暫延遲後重新啟動指北針監聽
-      setTimeout(() => {
-          if (isFollowingCompass) {
-              stopCompassWatch();
-              startCompassWatch();
+      #compass {
+          transition: transform 0.5s ease-out;
+      }
+      
+      #map {
+          transition: transform 0.5s ease-out;
+      }
+      
+      /* 手機版優化 */
+      @media (max-width: 768px) {
+          #controls {
+              bottom: 120px !important;
+              right: 10px !important;
           }
-      }, 500);
-  }
+          
+          .control-btn {
+              width: 60px !important;
+              height: 60px !important;
+              font-size: 30px !important;
+          }
+          
+          #compass {
+              top: 120px !important;
+              right: 5px !important;
+          }
+          
+          #compass svg {
+              width: 80px !important;
+              height: 80px !important;
+          }
+      }
+  `;
+  document.head.appendChild(style);
+  console.log('✅ 指北針 CSS 樣式已添加');
 }
 
-// 🆕 綁定螢幕方向變化事件
-window.addEventListener('orientationchange', handleOrientationChange);
-window.addEventListener('resize', handleOrientationChange);
-
-// 🔧 修改原有的地圖初始化函數，加入指北針初始化
-document.addEventListener('DOMContentLoaded', function() {
-  // 延遲初始化指北針功能，確保地圖已載入
+// 🔧 修改原程式的 initMap 函數，在最後加入指北針初始化
+function initMapWithCompass() {
+  // 原有的 initMap 邏輯...
+  
+  // 🆕 在地圖初始化完成後，初始化指北針
   setTimeout(() => {
-      initMobileCompass();
-  }, 2000);
-});
-
-// 🆕 指北針校準功能
-function calibrateCompass() {
-  if (!isFollowingCompass) {
-      showToast('請先啟用指北針跟隨功能', 'info');
-      return;
-  }
-  
-  showToast('🧭 校準指北針中...', 'info');
-  
-  // 重置指北針狀態
-  lastCompassHeading = null;
-  
-  // 重新啟動監聽
-  stopCompassWatch();
-  setTimeout(() => {
-      startCompassWatch();
-      showToast('✅ 指北針已重新校準', 'success');
+      initializeCompass();
   }, 1000);
 }
 
-// 🆕 添加校準按鈕（可選）
-function addCompassCalibrationButton() {
-  const rotationControls = document.querySelector('.rotation-controls');
-  if (!rotationControls || document.getElementById('calibrateCompassBtn')) {
-      return;
+// 🆕 檢查是否為手機裝置
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
+         || window.innerWidth <= 768;
+}
+
+// 🆕 手機版專用的指北針初始化
+function initMobileCompass() {
+  if (isMobileDevice()) {
+      console.log('📱 檢測到手機裝置，初始化手機版指北針');
+      
+      // 延遲初始化，確保地圖已完全載入
+      setTimeout(() => {
+          initializeCompass();
+          
+          // 手機版特殊處理
+          const controls = document.getElementById('controls');
+          if (controls) {
+              controls.style.bottom = '120px';
+              controls.style.right = '10px';
+          }
+          
+          console.log('✅ 手機版指北針初始化完成');
+      }, 2000);
+  }
+}
+
+// 🔧 修改 showToast 函數（如果原程式沒有的話）
+function showToast(message, type = 'info') {
+  // 如果原程式已有 showToast，則使用原有的
+  if (typeof window.showToast === 'function') {
+      return window.showToast(message, type);
   }
   
-  const calibrateBtn = document.createElement('button');
-  calibrateBtn.id = 'calibrateCompassBtn';
-  calibrateBtn.className = 'rotation-btn';
-  calibrateBtn.textContent = '🔄 校準';
-  calibrateBtn.onclick = calibrateCompass;
-  calibrateBtn.style.fontSize = '11px';
+  // 簡化版提示
+  console.log(`${type.toUpperCase()}: ${message}`);
   
-  rotationControls.appendChild(calibrateBtn);
-}
-
-// 🔧 在手機版初始化時也添加校準按鈕
-function initMobileCompassComplete() {
-  initMobileCompass();
+  // 創建簡單的提示框
+  const toast = document.createElement('div');
+  toast.textContent = message;
+  toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
+      color: white;
+      padding: 12px 20px;
+      border-radius: 6px;
+      z-index: 10000;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  `;
   
-  // 延遲添加校準按鈕
+  document.body.appendChild(toast);
+  
+  // 3秒後移除
   setTimeout(() => {
-      addCompassCalibrationButton();
-  }, 500);
+      if (toast.parentNode) {
+          toast.remove();
+      }
+  }, 3000);
 }
 
-// 🔧 更新初始化調用
+// 🔧 在頁面載入完成後初始化
 document.addEventListener('DOMContentLoaded', function() {
+  // 延遲初始化，確保原程式的地圖已載入
   setTimeout(() => {
-      initMobileCompassComplete();
-  }, 2000);
+      if (isMobileDevice()) {
+          initMobileCompass();
+      } else {
+          initializeCompass();
+      }
+  }, 3000);
+});
+
+// 🔧 監聽視窗大小變化，動態調整
+window.addEventListener('resize', function() {
+  if (isMobileDevice()) {
+      const controls = document.getElementById('controls');
+      const compass = document.getElementById('compass');
+      
+      if (controls) {
+          controls.style.bottom = '120px';
+          controls.style.right = '10px';
+      }
+      
+      if (compass) {
+          compass.style.top = '120px';
+          compass.style.right = '5px';
+      }
+  }
 });
 
 
