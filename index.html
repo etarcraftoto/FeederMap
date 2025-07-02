@@ -1727,39 +1727,129 @@ body {
 			let faultLineMarkers = [];
 			
 			// 🆕 修改地圖初始化函數
-			// 🔧 修改：整合豐富圖層的地圖初始化函數
-			async function initMap() {
-				console.log('🗺️ 初始化地圖...');
+			// 🔧 修正版：地圖初始化 - 確保所有組件完全載入後再啟用手機導航
+async function initMap() {
+  console.log('🗺️ 初始化地圖...');
+  
+  // 初始化超高速載入組件
+  feederCache = new FeederCache();
+  fastJsonLoader = new FastJsonLoader();
+  localStorageManager = new LocalStorageManager();
+  
+  // 建立地圖實例，預設中心點設在高雄
+  map = L.map('map', {
+      center: [22.67, 120.34],
+      zoom: 12,
+      maxZoom: 22,
+      rotate: true,
+      rotateControl: {
+          closeOnZeroBearing: false
+      },
+      bearing: 0,
+      zoomControl: false
+  });
+  
+  // 綁定地圖事件（保持原有邏輯）
+  bindMapEvents();
+  
+  // 定義座標系統
+  setupCoordinateSystems();
+  
+  // 建立地圖圖層
+  setupMapLayers();
+  
+  // 初始化箭頭和星星圖層群組
+  arrowLayerGroup = L.layerGroup().addTo(map);
+  oppositeLayerGroup = L.layerGroup().addTo(map);
+  
+  // 初始化測量工具
+  initializeMeasureTools();
+  
+  // 初始化圖層切換事件
+  initializeLayerSwitcher();
+  
+  // 載入饋線資料
+  await loadFeederDataFromSheet();
+  
+  // 建立進度條
+  createProgressBar();
+  
+  // 🔧 重要修正：確保所有控制項完全初始化後再啟用手機導航
+  // 延遲一點時間確保所有事件處理器都已綁定
+  setTimeout(() => {
+      initMobileNavigation();
+      console.log('📱 手機版導航延遲初始化完成');
+  }, 500);
+  
+  // 🔧 修正：停電資料改為背景載入，不阻塞主要功能
+  loadOutageDataInBackground();
+  
+  updateLoadStatus('地圖初始化完成，請選擇 JSON 檔案或從雲端載入...');
+  
+  console.log('✅ 地圖初始化完成');
+}
+
+		// 🔧 新增：檢測並隱藏手機版全螢幕按鈕
+		function handleFullscreenButtonVisibility() {
+			const fullscreenBtn = document.querySelector('.fullscreen-btn');
+			
+			if (fullscreenBtn) {
+				// 檢測是否為手機裝置
+				const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+				const isSmallScreen = window.innerWidth <= 768;
 				
-				// 初始化超高速載入組件
-				feederCache = new FeederCache();
-				fastJsonLoader = new FastJsonLoader();
-				localStorageManager = new LocalStorageManager();
-				
-				// 建立地圖實例，預設中心點設在高雄
-				// 建立地圖實例，預設中心點設在高雄
-				map = L.map('map', {
-					center: [22.67, 120.34],
-					zoom: 12,
-					maxZoom: 22,
-					rotate: true,
-					rotateControl: {
-						closeOnZeroBearing: false
-					},
-					bearing: 0,
-					zoomControl: false  // 🔧 新增：移除預設的縮放控制按鈕
-				});
-								
-				// 定義座標系統
-				proj4.defs([
-					['EPSG:3826', '+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs'],
-					['EPSG:3828', '+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=aust_SA +towgs84=-752,-358,-179,-.0000011698,.0000018398,.0000009822,.00002329 +units=m +no_defs'],
-					['EPSG:4326', '+proj=longlat +datum=WGS84 +no_defs']
-				]);
-				
-				// 🆕 整合：建立多種地圖圖層（從第一支程式）
-				window.mapLayers = {
-					// Google 系列
+				if (isMobile || isSmallScreen) {
+					fullscreenBtn.style.display = 'none';
+					console.log('📱 手機模式：已隱藏全螢幕按鈕');
+				} else {
+					fullscreenBtn.style.display = 'block';
+					console.log('🖥️ 桌面模式：顯示全螢幕按鈕');
+				}
+			}
+		}
+	// 🆕 背景載入停電資料
+	async function loadOutageDataInBackground() {
+	  try {
+		  console.log('🔄 開始背景載入停電資料...');
+		  
+		  // 更新狀態顯示
+		  const outageStatus = document.getElementById('outageStatus');
+		  if (outageStatus) {
+			  outageStatus.textContent = '🔄 背景載入停電資料中...';
+			  outageStatus.style.background = '#fff3cd';
+		  }
+		  
+		  // 非同步載入停電資料
+		  await loadOutageData();
+		  
+		  console.log('✅ 停電資料背景載入完成');
+		  
+	  } catch (error) {
+		  console.error('❌ 停電資料背景載入失敗:', error);
+		  
+		  const outageStatus = document.getElementById('outageStatus');
+		  if (outageStatus) {
+			  outageStatus.textContent = '⚠️ 停電資料載入失敗，但不影響其他功能使用';
+			  outageStatus.style.background = '#f8d7da';
+		  }
+	  }
+	}
+
+
+// 🔧 輔助函數：設定座標系統
+function setupCoordinateSystems() {
+  proj4.defs([
+      ['EPSG:3826', '+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs'],
+      ['EPSG:3828', '+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=aust_SA +towgs84=-752,-358,-179,-.0000011698,.0000018398,.0000009822,.00002329 +units=m +no_defs'],
+      ['EPSG:4326', '+proj=longlat +datum=WGS84 +no_defs']
+  ]);
+}
+
+// 🔧 輔助函數：設定地圖圖層
+function setupMapLayers() {
+  // 建立多種地圖圖層
+  window.mapLayers = {
+// Google 系列
 					googleStreets: L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
 						maxZoom: 22,
 						subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -1805,12 +1895,11 @@ body {
 						maxZoom: 30,
 						attribution: '© 內政部國土測繪中心'
 					})
-				};
-				
-				// 🆕 整合：疊加圖層（從第一支程式）
-	// 🔧 修正：使用與第一版相同的正確 WMTS 格式
-				window.overlayLayers = {
-					// ✅ 路網圖層 (已正常運作)
+  };
+  
+  // 建立疊加圖層
+  window.overlayLayers = {
+      // ✅ 路網圖層 (已正常運作)
 					roadNetwork: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/ROAD/default/GoogleMapsCompatible/{z}/{y}/{x}', {
 						maxZoom: 19,
 						attribution: '© 內政部國土測繪中心'
@@ -1908,59 +1997,10 @@ body {
 						maxZoom: 19,
 						attribution: '© 內政部國土測繪中心'
 					})
-				};
-				
-				// 預設載入 Google 街景圖
-				window.currentBaseLayer = window.mapLayers.googleStreets.addTo(map);
-				
-				// 初始化箭頭和星星圖層群組
-				arrowLayerGroup = L.layerGroup().addTo(map);
-				oppositeLayerGroup = L.layerGroup().addTo(map);
-				
-				// 初始化測量工具
-				initializeMeasureTools();
-				
-				// 初始化圖層切換事件
-				initializeLayerSwitcher();
-				
-
-				// 地圖點選事件 - 重置線段高亮
-				map.on('click', function(e) {
-					resetLineHighlight();
-				});
-				
-				// 載入饋線資料
-				await loadFeederDataFromSheet();
-				
-				// 建立進度條
-				createProgressBar();
-				// 載入停電資料
-				await loadOutageData();
-				
-				updateLoadStatus('地圖初始化完成，請選擇 JSON 檔案或從雲端載入...');
-				
-				    // 🆕 在最後加入這行
-				initMobileNavigation();
-				console.log('✅ 地圖初始化完成');
-			}
-
-// 🔧 新增：檢測並隱藏手機版全螢幕按鈕
-function handleFullscreenButtonVisibility() {
-    const fullscreenBtn = document.querySelector('.fullscreen-btn');
-    
-    if (fullscreenBtn) {
-        // 檢測是否為手機裝置
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const isSmallScreen = window.innerWidth <= 768;
-        
-        if (isMobile || isSmallScreen) {
-            fullscreenBtn.style.display = 'none';
-            console.log('📱 手機模式：已隱藏全螢幕按鈕');
-        } else {
-            fullscreenBtn.style.display = 'block';
-            console.log('🖥️ 桌面模式：顯示全螢幕按鈕');
-        }
-    }
+  };
+  
+  // 預設載入 Google 街景圖
+  window.currentBaseLayer = window.mapLayers.googleStreets.addTo(map);
 }
 
 // 在地圖初始化完成後執行
@@ -2005,6 +2045,85 @@ function toggleContinuousLocation() {
     } else {
         disableContinuousLocation();
     }
+}
+
+// 🔧 輔助函數：綁定地圖事件
+function bindMapEvents() {
+  // 地圖縮放時自動調整控制面板
+  map.on('zoomend', function() {
+      const zoom = map.getZoom();
+      const controls = document.querySelectorAll('.rotation-controls, .layer-switcher');
+      
+      controls.forEach(control => {
+          if (zoom < 10) {
+              control.style.opacity = '0.7';
+          } else {
+              control.style.opacity = '1';
+          }
+      });
+  });
+  
+  // 地圖移動時更新 URL
+  let urlUpdateTimeout;
+  map.on('moveend', function() {
+      clearTimeout(urlUpdateTimeout);
+      urlUpdateTimeout = setTimeout(() => {
+          const center = map.getCenter();
+          const zoom = map.getZoom();
+          const bearing = 0;
+          
+          const newUrl = `${window.location.pathname}#${zoom}/${center.lat.toFixed(6)}/${center.lng.toFixed(6)}/${bearing}`;
+          window.history.replaceState(null, null, newUrl);
+      }, 1000);
+  });
+  
+  // 右鍵選單功能
+  map.on('contextmenu', function(e) {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+      
+      const contextMenu = L.popup({
+          closeButton: false,
+          autoClose: true,
+          closeOnEscapeKey: true
+      })
+      .setLatLng(e.latlng)
+      .setContent(`
+          <div style="text-align: center; min-width: 150px;">
+              <h4 style="margin: 0 0 10px 0;">📍 位置操作</h4>
+              <button onclick="copyCoordinates(${lat}, ${lng}); map.closePopup();" 
+                      style="width: 100%; margin: 2px 0; padding: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                  📋 複製座標
+              </button>
+              <button onclick="openStreetView(${lat}, ${lng}); map.closePopup();" 
+                      style="width: 100%; margin: 2px 0; padding: 5px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                  🗺️ 街景圖
+              </button>
+              <button onclick="openNavigation(${lat}, ${lng}, '選定位置'); map.closePopup();" 
+                      style="width: 100%; margin: 2px 0; padding: 5px; background: #ffc107; color: black; border: none; border-radius: 3px; cursor: pointer;">
+                  🧭 導航至此
+              </button>
+          </div>
+      `)
+      .openOn(map);
+  });
+  
+  // 地圖點選事件
+  map.on('click', function(e) {
+      resetLineHighlight();
+      const layerMenu = document.getElementById('layerMenu');
+      if (layerMenu) {
+          layerMenu.style.display = 'none';
+      }
+  });
+}
+// 🔧 輔助函數：設定座標系統
+function setupCoordinateSystems() {
+  proj4.defs([
+      ['EPSG:3826', '+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs'],
+      ['EPSG:3828', '+proj=tmerc +lat_0=0 +lon_0=121 +k=0.9999 +x_0=250000 +y_0=0 +ellps=aust_SA +towgs84=-752,-358,-179,-.0000011698,.0000018398,.0000009822,.00002329 +units=m +no_defs'],
+      ['EPSG:4326', '+proj=longlat +datum=WGS84 +no_defs']
+  ]);
 }
 
 // 🔧 修正：加入距離閾值防止抖動
@@ -3956,57 +4075,54 @@ function fallbackCopyText(text) {
     document.body.removeChild(textArea);
 }
 
-// 🆕 顯示提示訊息
+// 🆕 顯示載入提示訊息
 function showToast(message, type = 'info') {
-    // 移除現有的提示
-    const existingToast = document.getElementById('toast-message');
-    if (existingToast) {
-        existingToast.remove();
-    }
-    
-    // 建立新提示
-    const toast = document.createElement('div');
-    toast.id = 'toast-message';
-    toast.textContent = message;
-    
-    const bgColor = type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8';
-    
-    toast.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${bgColor};
-        color: white;
-        padding: 12px 20px;
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 10000;
-        font-size: 14px;
-        font-weight: 500;
-        max-width: 300px;
-        word-wrap: break-word;
-        animation: slideIn 0.3s ease-out;
-    `;
-    
-    // 加入滑入動畫
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-    `;
-    document.head.appendChild(style);
-    
-    document.body.appendChild(toast);
-    
-    // 3秒後自動移除
-    setTimeout(() => {
-        if (toast.parentNode) {
-            toast.style.animation = 'slideIn 0.3s ease-out reverse';
-            setTimeout(() => toast.remove(), 300);
-        }
-    }, 3000);
+  // 創建提示元素
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 10000;
+      padding: 12px 20px;
+      border-radius: 6px;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transition: all 0.3s ease;
+      max-width: 300px;
+  `;
+  
+  // 根據類型設定顏色
+  switch(type) {
+      case 'success':
+          toast.style.background = '#28a745';
+          break;
+      case 'error':
+          toast.style.background = '#dc3545';
+          break;
+      case 'warning':
+          toast.style.background = '#ffc107';
+          toast.style.color = '#000';
+          break;
+      default:
+          toast.style.background = '#17a2b8';
+  }
+  
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  // 3秒後自動移除
+  setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100%)';
+      setTimeout(() => {
+          if (toast.parentNode) {
+              toast.parentNode.removeChild(toast);
+          }
+      }, 300);
+  }, 3000);
 }
 
 // 🆕 顏色調整輔助函數
@@ -5611,33 +5727,8 @@ function clearMeasurements() {
 
 
 
-// 新增：地圖縮放時自動調整控制面板
-map.on('zoomend', function() {
-    const zoom = map.getZoom();
-    const controls = document.querySelectorAll('.rotation-controls, .layer-switcher');
-    
-    controls.forEach(control => {
-        if (zoom < 10) {
-            control.style.opacity = '0.7';
-        } else {
-            control.style.opacity = '1';
-        }
-    });
-});
 
-// 新增：地圖移動時更新 URL（便於分享位置）
-let urlUpdateTimeout;
-map.on('moveend', function() {
-    clearTimeout(urlUpdateTimeout);
-    urlUpdateTimeout = setTimeout(() => {
-        const center = map.getCenter();
-        const zoom = map.getZoom();
-        const bearing = currentRotation;
-        
-        const newUrl = `${window.location.pathname}#${zoom}/${center.lat.toFixed(6)}/${center.lng.toFixed(6)}/${bearing}`;
-        window.history.replaceState(null, null, newUrl);
-    }, 1000);
-});
+
 
 // 新增：從 URL 載入地圖位置
 function loadMapFromURL() {
@@ -5660,40 +5751,6 @@ function loadMapFromURL() {
     }
 }
 
-// 新增：右鍵選單功能
-map.on('contextmenu', function(e) {
-    const lat = e.latlng.lat;
-    const lng = e.latlng.lng;
-    
-    const contextMenu = L.popup({
-        closeButton: false,
-        autoClose: true,
-        closeOnEscapeKey: true
-    })
-    .setLatLng(e.latlng)
-    .setContent(`
-        <div style="text-align: center; min-width: 150px;">
-            <h4 style="margin: 0 0 10px 0;">📍 位置操作</h4>
-            <button onclick="copyCoordinates(${lat}, ${lng}); map.closePopup();" 
-                    style="width: 100%; margin: 2px 0; padding: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;">
-                📋 複製座標
-            </button>
-            <button onclick="openStreetView(${lat}, ${lng}); map.closePopup();" 
-                    style="width: 100%; margin: 2px 0; padding: 5px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer;">
-                🗺️ 街景圖
-            </button>
-            <button onclick="openNavigation(${lat}, ${lng}, '選定位置'); map.closePopup();" 
-                    style="width: 100%; margin: 2px 0; padding: 5px; background: #ffc107; color: black; border: none; border-radius: 3px; cursor: pointer;">
-                🧭 導航至此
-            </button>
-            <button onclick="addCustomMarker(${lat}, ${lng}); map.closePopup();" 
-                    style="width: 100%; margin: 2px 0; padding: 5px; background: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer;">
-                📌 新增標記
-            </button>
-        </div>
-    `)
-    .openOn(map);
-});
 
 // 新增：自訂標記功能
 let customMarkers = [];
@@ -5805,10 +5862,7 @@ function toggleLayerMenu() {
     menu.style.display = isVisible ? 'none' : 'block';
 }
 
-// 點擊地圖時關閉圖層選單
-map.on('click', function() {
-    document.getElementById('layerMenu').style.display = 'none';
-});
+
 
 // 🆕 新增：疊加圖層控制函數
 // 🔧 修改：移除 checkbox 依賴的版本
@@ -5877,52 +5931,101 @@ function getOverlayDisplayName(layerName) {
 
 
 // 🆕 手機版導航功能
-// 🔧 修正版：手機版導航功能 - 改善資訊頁面處理
+// 🔧 修正版：手機版導航初始化 - 加入事件綁定檢查
 function initMobileNavigation() {
-    const navTabs = document.querySelectorAll('.nav-tab');
-    const sidebar = document.querySelector('.sidebar');
-    const mapContainer = document.querySelector('.map-container');
-    
-    // 只在手機版執行
-    if (window.innerWidth <= 768) {
-        navTabs.forEach(tab => {
-            tab.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                // 移除所有 active 狀態
-                navTabs.forEach(t => t.classList.remove('active'));
-                // 添加當前 active 狀態
-                this.classList.add('active');
-                
-                const tabType = this.getAttribute('data-tab');
-                
-                switch(tabType) {
-                    case 'map':
-                        mapContainer.style.display = 'block';
-                        sidebar.style.display = 'none';
-                        setTimeout(() => {
-                            if (map) map.invalidateSize();
-                        }, 100);
-                        break;
-                        
-                    case 'controls':
-                        // 🔧 修正：確保恢復原始控制面板內容
-                        restoreOriginalContent();
-                        mapContainer.style.display = 'none';
-                        sidebar.style.display = 'block';
-                        break;
-                        
-                    case 'info':
-                        mapContainer.style.display = 'none';
-                        sidebar.style.display = 'block';
-                        showInfoPanel();
-                        break;
-                }
-            });
-        });
-    }
+  console.log('📱 初始化手機版導航...');
+  
+  // 檢查是否為手機版
+  const isMobile = window.innerWidth <= 768;
+  if (!isMobile) {
+      console.log('🖥️ 非手機版，跳過手機導航初始化');
+      return;
+  }
+  
+  const mobileNav = document.querySelector('.mobile-nav');
+  const sidebar = document.querySelector('.sidebar');
+  const mapContainer = document.querySelector('.map-container');
+  
+  if (!mobileNav || !sidebar || !mapContainer) {
+      console.error('❌ 手機版導航元素未找到');
+      return;
+  }
+  
+  // 🆕 檢查關鍵控制元素是否存在
+  const feederInput = document.getElementById('feederInput');
+  const feederDropdown = document.getElementById('feederDropdown');
+  
+  if (!feederInput || !feederDropdown) {
+      console.warn('⚠️ 關鍵控制元素尚未就緒，延遲初始化');
+      setTimeout(initMobileNavigation, 200);
+      return;
+  }
+  
+  // 立即啟用導航功能
+  mobileNav.style.display = 'flex';
+  
+  // 預設顯示地圖
+  showMobileTab('map');
+  
+  // 綁定導航標籤點擊事件
+  const navTabs = mobileNav.querySelectorAll('.nav-tab');
+  navTabs.forEach(tab => {
+      // 🔧 移除舊的事件監聽器（避免重複綁定）
+      tab.removeEventListener('click', handleTabClick);
+      
+      // 重新綁定事件
+      tab.addEventListener('click', handleTabClick);
+  });
+  
+  console.log('✅ 手機版導航初始化完成');
 }
+// 🆕 標籤點擊處理函數
+function handleTabClick(event) {
+    const tabName = event.target.dataset.tab;
+    const navTabs = document.querySelectorAll('.nav-tab');
+    
+    // 移除所有啟用狀態
+    navTabs.forEach(t => t.classList.remove('active'));
+    
+    // 啟用當前標籤
+    event.target.classList.add('active');
+    
+    // 顯示對應內容
+    showMobileTab(tabName);
+    
+    console.log(`📱 切換到標籤: ${tabName}`);
+}
+
+// 🆕 顯示手機版標籤內容
+function showMobileTab(tabName) {
+  const sidebar = document.querySelector('.sidebar');
+  const mapContainer = document.querySelector('.map-container');
+  
+  if (!sidebar || !mapContainer) return;
+  
+  // 隱藏所有內容
+  sidebar.style.display = 'none';
+  mapContainer.style.display = 'none';
+  
+  switch(tabName) {
+      case 'map':
+          mapContainer.style.display = 'block';
+          break;
+          
+      case 'controls':
+      case 'info':
+          sidebar.style.display = 'block';
+          // 🆕 如果是控制或資訊標籤，可以滾動到特定區域
+          if (tabName === 'info' && currentFeederInfo) {
+              const feederInfo = document.getElementById('feederInfo');
+              if (feederInfo) {
+                  feederInfo.scrollIntoView({ behavior: 'smooth' });
+              }
+          }
+          break;
+  }
+}
+
 
 // 🆕 新增：重新初始化所有控制項
 function reinitializeControls() {
@@ -7004,3 +7107,4 @@ function showOutageMap() {
 		  </script>
 	  </body>
 	  </html>
+	  
