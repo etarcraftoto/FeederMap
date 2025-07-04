@@ -6695,23 +6695,23 @@ function showFeederDetailsInPopup(feeder, records, statusColor, statusText) {
                 </div>
                 
                 <!-- 🔧 修改：操作按鈕 - 有座標和無座標都能操作 -->
-                <div style="display: grid; grid-template-columns: ${hasCoordinates ? '1fr 1fr' : '1fr'}; gap: 6px; margin-top: 8px;">
-                    ${hasCoordinates ? `
-                        <button onclick="showFaultLocation('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
-                                style="padding: 6px 8px; background: #ffc107; color: #212529; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold;">
-                            📍 故障位置
-                        </button>
-                        <button onclick="loadFeederWithRecord('${feeder}', '${record.故障區間}', ${index})" 
-                                style="padding: 6px 8px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold;">
-                            🗺️ 載入饋線
-                        </button>
-                    ` : `
-                        <button onclick="loadFeederWithRecord('${feeder}', '${record.故障區間}', ${index})" 
-                                style="padding: 8px 12px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;">
-                            🗺️ 載入饋線並查看故障區間
-                        </button>
-                    `}
-                </div>
+				<div style="margin: 10px -8px 5px -8px;">
+					${hasCoordinates ? `
+						<button onclick="showFaultLocation('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
+								style="padding: 18px 24px; background: linear-gradient(135deg, #ff6b35, #f7931e); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: bold; width: calc(100% + 16px); transition: all 0.3s ease; box-shadow: 0 6px 12px rgba(255, 107, 53, 0.4); text-shadow: 0 2px 4px rgba(0,0,0,0.3); display: block; position: relative; letter-spacing: 0.5px;"
+								onmouseover="this.style.transform='translateY(-4px) scale(1.03)'; this.style.boxShadow='0 8px 20px rgba(255, 107, 53, 0.5)';"
+								onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 6px 12px rgba(255, 107, 53, 0.4)';">
+							🎯 查看故障區間並載入饋線
+						</button>
+					` : `
+						<button onclick="loadFeederWithRecord('${feeder}', '${record.故障區間}', ${index})" 
+								style="padding: 15px 20px; background: linear-gradient(135deg, #17a2b8, #138496); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; width: calc(100% + 16px); transition: all 0.3s ease; box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3); text-shadow: 0 1px 2px rgba(0,0,0,0.2);"
+								onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 12px rgba(23, 162, 184, 0.4)';"
+								onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 8px rgba(23, 162, 184, 0.3)';">
+							🗺️ 載入饋線並查看故障區間
+						</button>
+					`}
+				</div>
             </div>
         `;
     });
@@ -6854,23 +6854,23 @@ function showFeederDetailsInSidebar(feeder, records, statusColor, statusText) {
                 </div>
                 
                 <!-- 🔧 修改：操作按鈕 - 有座標和無座標都能操作 -->
-                <div style="display: grid; grid-template-columns: ${hasCoordinates ? '1fr 1fr' : '1fr'}; gap: 8px;">
-                    ${hasCoordinates ? `
-                        <button onclick="showFaultLocationMobile('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
-                                style="padding: 10px; background: #ffc107; color: #212529; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">
-                            📍 故障位置
-                        </button>
-                        <button onclick="loadFeederWithRecordMobile('${feeder}', '${record.故障區間}', ${index})" 
-                                style="padding: 10px; background: #17a2b8; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">
-                            🗺️ 載入饋線
-                        </button>
-                    ` : `
-                        <button onclick="loadFeederWithRecordMobile('${feeder}', '${record.故障區間}', ${index})" 
-                                style="padding: 12px; background: #17a2b8; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold;">
-                            🗺️ 載入饋線並查看故障區間
-                        </button>
-                    `}
-                </div>
+				<div style="margin-top: 8px;">
+					${hasCoordinates ? `
+						<button onclick="showFaultLocationMobile('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
+								style="padding: 16px 20px; background: linear-gradient(135deg, #ff6b35, #f7931e); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; transition: all 0.3s ease; box-shadow: 0 4px 8px rgba(255, 107, 53, 0.3); text-shadow: 0 1px 2px rgba(0,0,0,0.2); letter-spacing: 0.5px;"
+								onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(255, 107, 53, 0.4)';"
+								onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(255, 107, 53, 0.3)';">
+							🎯 查看故障區間並載入饋線
+						</button>
+					` : `
+						<button onclick="loadFeederWithRecordMobile('${feeder}', '${record.故障區間}', ${index})" 
+								style="padding: 14px 18px; background: linear-gradient(135deg, #17a2b8, #138496); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: bold; width: 100%; transition: all 0.3s ease; box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);"
+								onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 10px rgba(23, 162, 184, 0.4)';"
+								onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(23, 162, 184, 0.3)';">
+							🗺️ 載入饋線並查看故障區間
+						</button>
+					`}
+				</div>
             </div>
         `;
     });
