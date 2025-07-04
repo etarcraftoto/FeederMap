@@ -4737,11 +4737,35 @@ function adjustColor(color, percent) {
 				  }
 			  }
 			  
-			  // 頁面載入完成後初始化地圖
-			  document.addEventListener('DOMContentLoaded', function() {
-				  initMap();
-				  initMobileOptimizations();
-			  });
+// 🔧 修正版：頁面載入完成後的初始化 - 移除重新載入相關邏輯
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化地圖
+    initMap();
+    initMobileOptimizations();
+    
+    // 🔧 移除重新載入邏輯，改為直接初始化
+    setTimeout(loadMapFromURL, 1000);
+    
+    // 監聽全螢幕變化（不重新載入）
+    document.addEventListener('fullscreenchange', function() {
+        setTimeout(() => {
+            if (map) {
+                map.invalidateSize();
+                console.log('🗺️ 全螢幕狀態變化，地圖已調整');
+            }
+        }, 100);
+    });
+    
+    // 監聽視窗大小變化（不重新載入）
+    window.addEventListener('resize', function() {
+        setTimeout(() => {
+            if (map) {
+                map.invalidateSize();
+                console.log('🗺️ 視窗大小變化，地圖已調整');
+            }
+        }, 100);
+    });
+});
 			  
 			  
 // 🆕 修改後的初始化下拉選單函數
@@ -5727,7 +5751,7 @@ function adjustLayerOpacity(value) {
     }
 }
 
-// 🔧 修正：全螢幕功能 - 改善按鈕狀態管理
+// 🔧 修正版：全螢幕功能 - 移除重新載入邏輯
 function toggleFullscreen() {
     const btn = document.querySelector('.fullscreen-btn');
     
@@ -5759,7 +5783,7 @@ function toggleFullscreen() {
     }
 }
 
-// 🆕 監聽全螢幕狀態變化
+// 🔧 修正版：全螢幕狀態變化處理 - 移除重新載入
 function handleFullscreenChange() {
     const btn = document.querySelector('.fullscreen-btn');
     const body = document.body;
@@ -5770,32 +5794,37 @@ function handleFullscreenChange() {
                            document.msFullscreenElement);
     
     if (isFullscreen) {
+        // 進入全螢幕模式
         btn.textContent = '🔳 退出全螢幕';
         btn.title = '點擊退出全螢幕模式 (或按 ESC)';
         body.classList.add('fullscreen-mode');
         showToast('🔲 已進入全螢幕模式，點擊左上角按鈕或按 ESC 退出', 'info');
         
-        // 🔧 延遲調整地圖大小
+        // 🔧 調整地圖大小但不重新載入
         setTimeout(() => {
             if (map) {
                 map.invalidateSize();
+                console.log('🗺️ 地圖大小已調整（全螢幕模式）');
             }
         }, 100);
         
     } else {
+        // 退出全螢幕模式
         btn.textContent = '🔲 全螢幕';
         btn.title = '點擊進入全螢幕模式';
         body.classList.remove('fullscreen-mode');
         showToast('🔳 已退出全螢幕模式', 'info');
         
-        // 🔧 延遲調整地圖大小
+        // 🔧 調整地圖大小但不重新載入
         setTimeout(() => {
             if (map) {
                 map.invalidateSize();
+                console.log('🗺️ 地圖大小已調整（一般模式）');
             }
         }, 100);
     }
 }
+
 
 // 🆕 綁定全螢幕事件監聽器
 document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -6387,24 +6416,36 @@ function switchToMapTab() {
     }
 }
 
-// 🆕 監聽視窗大小變化
+// 🔧 修正版：監聽視窗大小變化 - 移除重新載入邏輯
 window.addEventListener('resize', function() {
- initMobileOptimizations();
-    // 當從手機切換到桌面時，重置顯示狀態
+    // 🔧 重要：移除重新載入邏輯，只保留必要的調整
+    initMobileOptimizations();
+    
+    // 🔧 修正：當從手機切換到桌面時，只調整顯示狀態，不重新載入
     if (window.innerWidth > 768) {
         const sidebar = document.querySelector('.sidebar');
         const mapContainer = document.querySelector('.map-container');
         
-        sidebar.style.display = 'block';
-        mapContainer.style.display = 'block';
-        
-        // 恢復原始側邊欄內容（如果被修改過）
-        location.reload(); // 簡單的重載方案
+        if (sidebar && mapContainer) {
+            sidebar.style.display = 'block';
+            mapContainer.style.display = 'block';
+            
+            // 🔧 重要：恢復原始側邊欄內容（如果被修改過），但不重新載入整個頁面
+            const originalContent = sidebar.getAttribute('data-original-content');
+            if (originalContent) {
+                sidebar.innerHTML = originalContent;
+                sidebar.removeAttribute('data-original-content');
+                reinitializeControls();
+            }
+        }
     }
     
-    // 調整地圖大小
+    // 🔧 只調整地圖大小，不重新載入
     setTimeout(() => {
-        if (map) map.invalidateSize();
+        if (map) {
+            map.invalidateSize();
+            console.log('🗺️ 視窗大小變化，地圖已調整');
+        }
     }, 100);
 });
 
