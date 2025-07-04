@@ -1329,14 +1329,16 @@ body {
     }
 }
 
-/* 災情查報相關樣式 */
+/* 🔧 修改：災情查報相關樣式 - 藍色系 */
 .disaster-report-section {
     margin-bottom: 25px;
     padding: 20px;
-    background: #fff3cd;
+    background: linear-gradient(135deg, #e3f2fd, #bbdefb);
     border-radius: 8px;
-    border: 2px solid #ffc107;
+    border: 2px solid #2196f3;
+    transition: all 0.3s ease;
 }
+
 
 .disaster-marker-icon {
     background: transparent !important;
@@ -1505,11 +1507,11 @@ body {
 				</div>
 			</div>
 			
-			<!-- 災情查報區域 -->
-			<div class="disaster-report-section">
-				<h3 style="color: #856404; margin-bottom: 15px;">🚨 災情查報系統</h3>
+			<!-- 🔧 修改：災情查報區域 - 改為藍色系 -->
+			<div class="disaster-report-section" style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, #e3f2fd, #bbdefb); border-radius: 8px; border: 2px solid #2196f3;">
+				<h3 style="color: #0d47a1; margin-bottom: 15px; text-shadow: 0 1px 2px rgba(13, 71, 161, 0.1);">🚨 災情查報系統</h3>
 				
-				<div id="disasterStatus" style="margin-bottom: 15px; padding: 10px; background: #e8f5e8; border-radius: 6px; font-size: 13px;">
+				<div id="disasterStatus" style="margin-bottom: 15px; padding: 10px; background: #e8f4fd; border: 1px solid #64b5f6; border-radius: 6px; font-size: 13px; color: #1565c0;">
 					正在載入災情資料...
 				</div>
 				
@@ -1520,7 +1522,7 @@ body {
 				
 				<!-- 篩選控制 -->
 				<div style="margin-bottom: 10px;">
-					<select id="disasterFilter" style="width: 100%; padding: 5px; border: 1px solid #ddd; border-radius: 4px;" onchange="filterDisasterReports()">
+					<select id="disasterFilter" style="width: 100%; padding: 8px; border: 2px solid #42a5f5; border-radius: 4px; background: white; color: #1565c0; font-weight: 500;" onchange="filterDisasterReports()">
 						<option value="all">所有災情</option>
 						<option value="未修復">未修復</option>
 						<option value="已派修">已派修</option>
@@ -1531,11 +1533,15 @@ body {
 				<!-- 操作按鈕 -->
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
 					<button onclick="refreshDisasterData()" 
-							style="padding: 8px 12px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+							style="padding: 8px 12px; background: linear-gradient(135deg, #1976d2, #1565c0); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(25, 118, 210, 0.3);"
+							onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(25, 118, 210, 0.4)';"
+							onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(25, 118, 210, 0.3)';">
 						🔄 重新整理
 					</button>
 					<button onclick="showDisasterMap()" 
-							style="padding: 8px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+							style="padding: 8px 12px; background: linear-gradient(135deg, #2196f3, #1976d2); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);"
+							onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(33, 150, 243, 0.4)';"
+							onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(33, 150, 243, 0.3)';">
 						🗺️ 災情地圖
 					</button>
 				</div>
@@ -7464,7 +7470,7 @@ function createDisasterMarker(report) {
     return marker;
 }
 
-// 🔧 修正版：建立災情彈出窗口內容 - 改善錯誤處理
+// 🔧 修正版：建立災情彈出窗口內容 - 將派修功能改為導航功能
 function createDisasterPopupContent(report) {
     const repairStatus = report['修復狀態'] || '未修復';
     const severityLevel = report['嚴重等級'] || '未定義';
@@ -7526,7 +7532,7 @@ function createDisasterPopupContent(report) {
         popupContent += `<strong>備註:</strong> <span style="color: #dc3545;">${report.remarks}</span><br>`;
     }
     
-    // 🔧 改善版照片預覽 - 加入更好的錯誤處理
+    // 照片預覽（保持原有功能）
     if (Array.isArray(report.photos) && report.photos.length > 0) {
         popupContent += `<div class="popup-photos" style="margin-top: 10px;">
             <strong>照片 (${report.photos.length}):</strong><br>
@@ -7547,7 +7553,6 @@ function createDisasterPopupContent(report) {
             
             if (!photoUrl) return;
             
-            // 🔧 縮圖預覽使用小尺寸
             const thumbnailUrl = fixGoogleDrivePhotoUrl(photoUrl, false);
             
             popupContent += `
@@ -7568,35 +7573,106 @@ function createDisasterPopupContent(report) {
         });
         
         popupContent += `</div>`;
-        popupContent += `<div style="font-size: 10px; color: #6c757d; margin-top: 5px; text-align: center;">點擊照片放大檢視 • 如無法顯示請檢查網路連線</div></div>`;
+        popupContent += `<div style="font-size: 10px; color: #6c757d; margin-top: 5px; text-align: center;">點擊照片放大檢視</div></div>`;
     }
     
-    // 添加操作按鈕
-    popupContent += `<div style="margin-top: 10px; display: flex; gap: 5px;">`;
-    
-    // 街景按鈕
+    // 🔧 修改：將派修按鈕改為導航功能
     if (report.location?.latitude && report.location?.longitude) {
+        const lat = report.location.latitude;
+        const lng = report.location.longitude;
+        const locationName = getDisasterLocationName(report);
+        
+        popupContent += `<div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
+        
+        // 街景按鈕
         popupContent += `
-            <button style="flex: 1; padding: 5px; background: #4285f4; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;"
-                    onclick="openStreetView(${report.location.latitude}, ${report.location.longitude})">
+            <button onclick="openStreetView(${lat}, ${lng})" 
+                    style="padding: 8px 6px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;"
+                    title="開啟 Google 街景圖">
                 🗺️ 街景
             </button>
         `;
-    }
-    
-    // 派修按鈕（如果未修復）
-    if (repairStatus !== '已修復') {
+        
+        // 導航按鈕
         popupContent += `
-            <button style="flex: 1; padding: 5px; background: #ffc107; color: #212529; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;"
-                    onclick="openRepairModal('${report.id}')">
-                🔧 ${repairStatus === '已派修' ? '修改派修' : '派修'}
+            <button onclick="openNavigation(${lat}, ${lng}, '${encodeURIComponent(locationName)}')" 
+                    style="padding: 8px 6px; background: #34a853; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;"
+                    title="開啟 Google 導航">
+                🧭 導航
             </button>
+        `;
+        
+        popupContent += `</div>`;
+        
+        // 複製座標按鈕
+        popupContent += `
+            <div style="margin-top: 8px;">
+                <button onclick="copyCoordinates(${lat}, ${lng})" 
+                        style="width: 100%; padding: 6px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 10px;"
+                        title="複製經緯度座標">
+                    📋 複製座標 (${lat.toFixed(6)}, ${lng.toFixed(6)})
+                </button>
+            </div>
+        `;
+    } else {
+        // 如果沒有座標，顯示無法導航的提示
+        popupContent += `
+            <div style="margin-top: 10px; padding: 8px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; text-align: center;">
+                <span style="color: #721c24; font-size: 11px;">❌ 此災情無位置資訊，無法提供導航功能</span>
+            </div>
         `;
     }
     
-    popupContent += `</div></div>`;
+    popupContent += `</div>`;
     
     return popupContent;
+}
+
+// 🆕 取得災情位置名稱
+function getDisasterLocationName(report) {
+    let locationName = '災情位置';
+    
+    if (report.location?.tpcMapNumber) {
+        locationName = `台電圖號 ${report.location.tpcMapNumber}`;
+    } else if (report.location?.poleNumber) {
+        locationName = `電桿 ${report.location.poleNumber}`;
+    } else if (report['饋線代號']) {
+        locationName = `饋線 ${report['饋線代號']} 災情`;
+    } else if (Array.isArray(report.incidents) && report.incidents.length > 0) {
+        locationName = `${report.incidents[0].type || '災情'} 現場`;
+    }
+    
+    return locationName;
+}
+
+// 🆕 開啟 Google 導航
+function openNavigation(lat, lng, name) {
+    // 檢測是否為行動裝置
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+        // 行動裝置優先嘗試開啟 Google Maps App
+        const appUrl = `google.navigation:q=${lat},${lng}`;
+        const fallbackUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${encodeURIComponent(name)}`;
+        
+        // 嘗試開啟 App，失敗則開啟網頁版
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = appUrl;
+        document.body.appendChild(iframe);
+        
+        setTimeout(() => {
+            document.body.removeChild(iframe);
+            window.open(fallbackUrl, '_blank');
+        }, 1000);
+    } else {
+        // 桌面版直接開啟網頁版 Google Maps
+        const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&destination_place_id=${encodeURIComponent(name)}`;
+        window.open(googleMapsUrl, '_blank');
+    }
+    
+    console.log(`🧭 開啟導航至: ${name} (${lat}, ${lng})`);
+    showToast(`🧭 正在開啟導航至 ${decodeURIComponent(name)}`, 'info');
 }
 // 🆕 縮圖載入錯誤處理
 function handleThumbnailError(imgElement, originalUrl, photoIndex) {
@@ -7833,24 +7909,49 @@ function filterDisasterReports() {
     disasterData = originalData;
 }
 
-// 重新整理災情資料
+// 🔧 修正版：重新整理災情資料 - 保持地圖狀態
 async function refreshDisasterData() {
     updateDisasterStatus('正在重新整理...');
+    
+    // 🔧 記住當前地圖顯示狀態
+    const wasVisible = disasterMapVisible;
+    
     const success = await loadDisasterData();
     if (success) {
         showToast('✅ 災情資料已更新', 'success');
+        
+        // 🔧 如果之前地圖是顯示的，重新顯示
+        if (wasVisible) {
+            setTimeout(() => {
+                displayDisasterMap();
+            }, 500);
+        }
     } else {
         showToast('❌ 災情資料更新失敗', 'error');
     }
 }
-
-// 顯示災情地圖
+// 🔧 修正版：災情地圖狀態管理
+let disasterMapVisible = false; // 追蹤災情地圖顯示狀態
+// 🔧 修正版：顯示/隱藏災情地圖 - 切換功能
 function showDisasterMap() {
     if (!disasterData || disasterData.length === 0) {
         showToast('❌ 無災情資料可顯示', 'error');
         return;
     }
     
+    if (disasterMapVisible) {
+        // 目前顯示中，執行隱藏
+        hideDisasterMap();
+    } else {
+        // 目前隱藏中，執行顯示
+        displayDisasterMap();
+    }
+}
+// 🆕 顯示災情地圖
+function displayDisasterMap() {
+    console.log('🗺️ 顯示災情地圖...');
+    
+    // 清除現有標記（防止重複）
     clearDisasterMarkers();
     
     let markerCount = 0;
@@ -7867,21 +7968,58 @@ function showDisasterMap() {
     
     if (markerCount > 0) {
         map.fitBounds(bounds, { padding: [20, 20] });
+        disasterMapVisible = true;
+        updateDisasterMapButton();
         showToast(`🗺️ 已顯示 ${markerCount} 個災情位置`, 'success');
     } else {
         showToast('❌ 無有效位置資料可顯示', 'error');
     }
 }
 
-// 清除災情標記
+// 🆕 隱藏災情地圖
+function hideDisasterMap() {
+    console.log('🗺️ 隱藏災情地圖...');
+    
+    clearDisasterMarkers();
+    disasterMapVisible = false;
+    updateDisasterMapButton();
+    showToast('✅ 已隱藏所有災情標記', 'info');
+}
+// 🆕 更新災情地圖按鈕文字
+function updateDisasterMapButton() {
+    // 🔧 尋找災情地圖按鈕並更新文字
+    const disasterMapButtons = document.querySelectorAll('button[onclick="showDisasterMap()"]');
+    
+    disasterMapButtons.forEach(button => {
+        if (disasterMapVisible) {
+            button.textContent = '🙈 隱藏災情';
+            button.style.background = '#6c757d';
+            button.title = '點擊隱藏所有災情標記';
+        } else {
+            button.textContent = '🗺️ 災情地圖';
+            button.style.background = '#28a745';
+            button.title = '點擊顯示所有災情標記';
+        }
+    });
+    
+    console.log(`🔄 災情地圖按鈕已更新: ${disasterMapVisible ? '隱藏模式' : '顯示模式'}`);
+}
+
+// 🔧 修正版：清除災情標記 - 加入狀態重置
 function clearDisasterMarkers() {
+    console.log(`🧹 清除 ${disasterMarkers.length} 個災情標記...`);
+    
     disasterMarkers.forEach(marker => {
         if (map.hasLayer(marker)) {
             map.removeLayer(marker);
         }
     });
     disasterMarkers = [];
+    
+    // 🔧 關閉任何開啟的彈出視窗
+    map.closePopup();
 }
+
 // 🆕 修正 Google Drive 照片 URL
 // 🔧 完全修正版：Google Drive 照片 URL 處理 - 多重備援方案
 function fixGoogleDrivePhotoUrl(url, isModal = false) {
@@ -8298,6 +8436,143 @@ function extractFileIdFromUrl(url) {
     
     return null;
 }
+
+
+// 🆕 災情地圖工具列功能
+function createDisasterMapToolbar() {
+    // 檢查是否已存在工具列
+    let toolbar = document.getElementById('disaster-map-toolbar');
+    if (toolbar) return;
+    
+    // 創建工具列
+    toolbar = document.createElement('div');
+    toolbar.id = 'disaster-map-toolbar';
+    toolbar.style.cssText = `
+        position: absolute;
+        top: 60px;
+        right: 10px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 8px;
+        padding: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 140px;
+    `;
+    
+    toolbar.innerHTML = `
+        <button onclick="showDisasterMap()" 
+                style="padding: 8px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+            🗺️ 災情地圖
+        </button>
+        <button onclick="filterDisasterByStatus('未修復')" 
+                style="padding: 8px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+            🔴 未修復
+        </button>
+        <button onclick="filterDisasterByStatus('已派修')" 
+                style="padding: 8px 12px; background: #ffc107; color: #212529; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+            🟡 已派修
+        </button>
+        <button onclick="filterDisasterByStatus('已修復')" 
+                style="padding: 8px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+            🟢 已修復
+        </button>
+        <button onclick="hideDisasterMapToolbar()" 
+                style="padding: 6px 12px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">
+            ✕ 關閉
+        </button>
+    `;
+    
+    document.querySelector('.map-container').appendChild(toolbar);
+}
+
+// 🆕 顯示災情地圖工具列
+function showDisasterMapToolbar() {
+    createDisasterMapToolbar();
+    const toolbar = document.getElementById('disaster-map-toolbar');
+    if (toolbar) {
+        toolbar.style.display = 'flex';
+    }
+}
+
+// 🆕 隱藏災情地圖工具列
+function hideDisasterMapToolbar() {
+    const toolbar = document.getElementById('disaster-map-toolbar');
+    if (toolbar) {
+        toolbar.style.display = 'none';
+    }
+}
+
+// 🆕 按狀態篩選災情標記
+function filterDisasterByStatus(status) {
+    console.log(`🔍 篩選災情狀態: ${status}`);
+    
+    // 先清除現有標記
+    clearDisasterMarkers();
+    
+    if (!disasterData || disasterData.length === 0) {
+        showToast('❌ 無災情資料可顯示', 'error');
+        return;
+    }
+    
+    // 篩選資料
+    const filteredData = disasterData.filter(report => {
+        const repairStatus = report['修復狀態'] || '未修復';
+        return repairStatus === status;
+    });
+    
+    if (filteredData.length === 0) {
+        showToast(`❌ 沒有 "${status}" 的災情資料`, 'warning');
+        disasterMapVisible = false;
+        updateDisasterMapButton();
+        return;
+    }
+    
+    // 顯示篩選後的標記
+    let markerCount = 0;
+    const bounds = L.latLngBounds();
+    
+    filteredData.forEach(report => {
+        if (report.location && report.location.latitude && report.location.longitude) {
+            const marker = createDisasterMarker(report);
+            disasterMarkers.push(marker);
+            bounds.extend([report.location.latitude, report.location.longitude]);
+            markerCount++;
+        }
+    });
+    
+    if (markerCount > 0) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+        disasterMapVisible = true;
+        updateDisasterMapButton();
+        showToast(`🗺️ 已顯示 ${markerCount} 個 "${status}" 災情`, 'success');
+    }
+}
+
+// 🆕 災情地圖快捷鍵
+document.addEventListener('keydown', function(e) {
+    // Ctrl + D: 切換災情地圖
+    if (e.ctrlKey && e.key === 'd') {
+        e.preventDefault();
+        showDisasterMap();
+    }
+    
+    // Ctrl + Shift + D: 顯示災情工具列
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        showDisasterMapToolbar();
+    }
+});
+
+// 🔧 修正版：初始化時設置按鈕狀態
+document.addEventListener('DOMContentLoaded', function() {
+    // 延遲設置按鈕狀態，確保 DOM 完全載入
+    setTimeout(() => {
+        updateDisasterMapButton();
+    }, 1000);
+});
 		  </script>
 		  <!-- 照片放大模態框 -->
 		<div id="photo-modal" class="photo-modal">
