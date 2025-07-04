@@ -1786,15 +1786,6 @@ async function initMap() {
   
   updateLoadStatus('地圖初始化完成，請選擇 JSON 檔案或從雲端載入...');
   
-      // 🔧 重要修正：確保DOM完全載入後再初始化手機導航
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(initMobileNavigation, 100);
-        });
-    } else {
-        setTimeout(initMobileNavigation, 100);
-    }
-  
   console.log('✅ 地圖初始化完成');
 }
 
@@ -5940,142 +5931,101 @@ function getOverlayDisplayName(layerName) {
 
 
 // 🆕 手機版導航功能
-// 🔧 修正版：手機版導航初始化 - 更穩定的事件綁定
+// 🔧 修正版：手機版導航初始化 - 加入事件綁定檢查
 function initMobileNavigation() {
-    console.log('📱 初始化手機版導航...');
-    
-    // 檢查是否為手機版
-    const isMobile = window.innerWidth <= 768;
-    if (!isMobile) {
-        console.log('🖥️ 非手機版，跳過手機導航初始化');
-        return;
-    }
-    
-    const mobileNav = document.querySelector('.mobile-nav');
-    if (!mobileNav) {
-        console.error('❌ 手機版導航元素未找到');
-        return;
-    }
-    
-    // 立即啟用導航功能
-    mobileNav.style.display = 'flex';
-    
-    // 🔧 修正：使用更穩定的事件綁定方式
-    const navTabs = mobileNav.querySelectorAll('.nav-tab');
-    console.log(`📱 找到 ${navTabs.length} 個導航標籤`);
-    
-    navTabs.forEach((tab, index) => {
-        const tabName = tab.dataset.tab;
-        console.log(`📱 綁定標籤 ${index}: ${tabName}`);
-        
-        // 🔧 重要：移除所有舊的事件監聽器
-        const newTab = tab.cloneNode(true);
-        tab.parentNode.replaceChild(newTab, tab);
-        
-        // 🔧 重要：重新綁定點擊事件
-        newTab.addEventListener('click', function(event) {
-            console.log(`📱 點擊標籤: ${tabName}`);
-            handleTabClick(event);
-        });
-        
-        // 🔧 新增：觸控事件支援
-        newTab.addEventListener('touchstart', function(event) {
-            console.log(`📱 觸控標籤: ${tabName}`);
-            event.preventDefault();
-            handleTabClick(event);
-        });
-    });
-    
-    // 預設顯示地圖
-    showMobileTab('map');
-    
-    console.log('✅ 手機版導航初始化完成');
+  console.log('📱 初始化手機版導航...');
+  
+  // 檢查是否為手機版
+  const isMobile = window.innerWidth <= 768;
+  if (!isMobile) {
+      console.log('🖥️ 非手機版，跳過手機導航初始化');
+      return;
+  }
+  
+  const mobileNav = document.querySelector('.mobile-nav');
+  const sidebar = document.querySelector('.sidebar');
+  const mapContainer = document.querySelector('.map-container');
+  
+  if (!mobileNav || !sidebar || !mapContainer) {
+      console.error('❌ 手機版導航元素未找到');
+      return;
+  }
+  
+  // 🆕 檢查關鍵控制元素是否存在
+  const feederInput = document.getElementById('feederInput');
+  const feederDropdown = document.getElementById('feederDropdown');
+  
+  if (!feederInput || !feederDropdown) {
+      console.warn('⚠️ 關鍵控制元素尚未就緒，延遲初始化');
+      setTimeout(initMobileNavigation, 200);
+      return;
+  }
+  
+  // 立即啟用導航功能
+  mobileNav.style.display = 'flex';
+  
+  // 預設顯示地圖
+  showMobileTab('map');
+  
+  // 綁定導航標籤點擊事件
+  const navTabs = mobileNav.querySelectorAll('.nav-tab');
+  navTabs.forEach(tab => {
+      // 🔧 移除舊的事件監聽器（避免重複綁定）
+      tab.removeEventListener('click', handleTabClick);
+      
+      // 重新綁定事件
+      tab.addEventListener('click', handleTabClick);
+  });
+  
+  console.log('✅ 手機版導航初始化完成');
 }
-// 🔧 修正版：標籤點擊處理函數 - 加強除錯
+// 🆕 標籤點擊處理函數
 function handleTabClick(event) {
-    console.log('📱 處理標籤點擊事件:', event);
-    
-    const target = event.target || event.currentTarget;
-    const tabName = target.dataset.tab;
-    
-    console.log(`📱 標籤名稱: ${tabName}`);
-    
-    if (!tabName) {
-        console.error('❌ 無法取得標籤名稱');
-        return;
-    }
+    const tabName = event.target.dataset.tab;
+    const navTabs = document.querySelectorAll('.nav-tab');
     
     // 移除所有啟用狀態
-    const navTabs = document.querySelectorAll('.nav-tab');
-    navTabs.forEach(t => {
-        t.classList.remove('active');
-        console.log(`📱 移除 ${t.dataset.tab} 的 active 狀態`);
-    });
+    navTabs.forEach(t => t.classList.remove('active'));
     
     // 啟用當前標籤
-    target.classList.add('active');
-    console.log(`📱 啟用 ${tabName} 標籤`);
+    event.target.classList.add('active');
     
     // 顯示對應內容
     showMobileTab(tabName);
     
-    // 🆕 特殊處理資訊標籤
-    if (tabName === 'info') {
-        setTimeout(() => {
-            showInfoPanel();
-        }, 100);
-    }
-    
-    console.log(`📱 切換到標籤完成: ${tabName}`);
+    console.log(`📱 切換到標籤: ${tabName}`);
 }
 
-// 🔧 修正版：顯示手機版標籤內容 - 加強除錯
+// 🆕 顯示手機版標籤內容
 function showMobileTab(tabName) {
-    console.log(`📱 顯示標籤內容: ${tabName}`);
-    
-    const sidebar = document.querySelector('.sidebar');
-    const mapContainer = document.querySelector('.map-container');
-    
-    if (!sidebar || !mapContainer) {
-        console.error('❌ 找不到側邊欄或地圖容器');
-        return;
-    }
-    
-    // 隱藏所有內容
-    sidebar.style.display = 'none';
-    mapContainer.style.display = 'none';
-    
-    switch(tabName) {
-        case 'map':
-            console.log('📱 顯示地圖');
-            mapContainer.style.display = 'block';
-            // 重新調整地圖大小
-            setTimeout(() => {
-                if (map) map.invalidateSize();
-            }, 100);
-            break;
-            
-        case 'controls':
-            console.log('📱 顯示控制面板');
-            sidebar.style.display = 'block';
-            // 確保恢復原始內容
-            restoreOriginalContent();
-            break;
-            
-        case 'info':
-            console.log('📱 顯示資訊面板');
-            sidebar.style.display = 'block';
-            // 延遲顯示資訊面板
-            setTimeout(() => {
-                showInfoPanel();
-            }, 50);
-            break;
-            
-        default:
-            console.warn(`⚠️ 未知的標籤: ${tabName}`);
-            mapContainer.style.display = 'block';
-    }
+  const sidebar = document.querySelector('.sidebar');
+  const mapContainer = document.querySelector('.map-container');
+  
+  if (!sidebar || !mapContainer) return;
+  
+  // 隱藏所有內容
+  sidebar.style.display = 'none';
+  mapContainer.style.display = 'none';
+  
+  switch(tabName) {
+      case 'map':
+          mapContainer.style.display = 'block';
+          break;
+          
+      case 'controls':
+      case 'info':
+          sidebar.style.display = 'block';
+          // 🆕 如果是控制或資訊標籤，可以滾動到特定區域
+          if (tabName === 'info' && currentFeederInfo) {
+              const feederInfo = document.getElementById('feederInfo');
+              if (feederInfo) {
+                  feederInfo.scrollIntoView({ behavior: 'smooth' });
+              }
+          }
+          break;
+  }
 }
+
 
 // 🆕 新增：重新初始化所有控制項
 function reinitializeControls() {
@@ -6142,29 +6092,23 @@ function handleFileInput(event) {
     reader.readAsText(file);
 }
 // 🆕 資訊面板功能
-// 🔧 修正版：資訊面板 - 確保正確顯示
+// 🔧 修正版：資訊面板 - 不覆蓋原內容
 function showInfoPanel() {
-    console.log('📋 顯示資訊面板');
-    
     const sidebar = document.querySelector('.sidebar');
-    if (!sidebar) {
-        console.error('❌ 找不到側邊欄');
-        return;
-    }
     
-    // 🔧 重要修正：先暫存原內容，再替換
-    if (!sidebar.getAttribute('data-original-content')) {
-        sidebar.setAttribute('data-original-content', sidebar.innerHTML);
-        console.log('💾 已暫存原始內容');
-    }
+    // 🔧 重要修正：先隱藏原內容，而不是替換
+    const originalContent = sidebar.innerHTML;
+    
+    // 暫存原內容到 data 屬性
+    sidebar.setAttribute('data-original-content', originalContent);
     
     const infoContent = `
         <div style="padding: 20px; background: white; height: 100%; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3 style="color: #2c3e50; margin: 0;">📋 系統資訊</h3>
                 <button onclick="restoreOriginalContent()" 
-                        style="background: #6c757d; color: white; border: none; padding: 8px 12px; 
-                               border-radius: 4px; cursor: pointer; font-size: 14px;">
+                        style="background: #6c757d; color: white; border: none; padding: 5px 10px; 
+                               border-radius: 4px; cursor: pointer; font-size: 12px;">
                     ✕ 關閉
                 </button>
             </div>
@@ -6213,13 +6157,10 @@ function showInfoPanel() {
     `;
     
     sidebar.innerHTML = infoContent;
-    console.log('✅ 資訊面板內容已載入');
 }
 
-// 🔧 修正版：恢復原始內容函數
+// 🆕 新增：恢復原始內容函數
 function restoreOriginalContent() {
-    console.log('🔄 恢復原始內容');
-    
     const sidebar = document.querySelector('.sidebar');
     const originalContent = sidebar.getAttribute('data-original-content');
     
@@ -6228,14 +6169,9 @@ function restoreOriginalContent() {
         sidebar.removeAttribute('data-original-content');
         
         // 🔧 重要：重新初始化控制項
-        setTimeout(() => {
-            reinitializeControls();
-        }, 100);
+        reinitializeControls();
         
         console.log('✅ 已恢復原始控制面板內容');
-    } else {
-        console.warn('⚠️ 找不到原始內容，重新載入頁面');
-        location.reload();
     }
 }
 // 🆕 切換到地圖標籤
