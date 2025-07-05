@@ -22,7 +22,8 @@
 		<script src="https://cdn.jsdelivr.net/npm/leaflet-compass@1.0.0/dist/leaflet-compass.js"></script>
 		<script src="https://unpkg.com/leaflet-rotate@0.1.4/dist/leaflet-rotate-src.js"></script>
 		
-		
+		<!-- 在 head 區域加入 Supabase 客戶端 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 		<style>
 * {
     margin: 0;
@@ -1586,6 +1587,72 @@ body {
 						</div>
 				</div>
 			</div>
+			
+			<!-- 🆕 鄰近設備搜尋區域 -->
+			<!-- 🔧 修正版：鄰近設備搜尋區域 - 新增更多半徑選項 -->
+			<div class="nearby-search-section" style="margin-bottom: 25px; padding: 20px; background: #e8f4fd; border-radius: 8px; border: 2px solid #2196f3;">
+				<h3 style="color: #0d47a1; margin-bottom: 15px; text-shadow: 0 1px 2px rgba(13, 71, 161, 0.1);">🎯 鄰近設備搜尋</h3>
+				
+				<div style="margin-bottom: 15px;">
+					<label style="display: block; margin-bottom: 8px; font-weight: bold; color: #1565c0;">搜尋半徑</label>
+					<select id="searchRadius" style="width: 100%; padding: 8px; border: 2px solid #42a5f5; border-radius: 4px; background: white; color: #1565c0;">
+						<option value="0.1">100 公尺</option>
+						<option value="0.2">200 公尺</option>
+						<option value="0.5">500 公尺</option>
+						<option value="0.75">750 公尺</option>
+						<option value="1">1 公里</option>
+						<option value="2" selected>2 公里</option>
+						<option value="5">5 公里</option>
+						<option value="10">10 公里</option>
+					</select>
+				</div>
+				
+				<div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
+					<button onclick="searchNearbyFromLocation()" 
+							style="padding: 12px 20px; background: linear-gradient(135deg, #2196f3, #1976d2); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.3s ease; box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);"
+							onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(33, 150, 243, 0.4)';"
+							onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(33, 150, 243, 0.3)';">
+						📍 搜尋我的位置附近
+					</button>
+					<button onclick="enableMapClickForSearch()" 
+							style="padding: 12px 20px; background: linear-gradient(135deg, #ff9800, #f57c00); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.3s ease; box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);"
+							onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(255, 152, 0, 0.4)';"
+							onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(255, 152, 0, 0.3)';">
+						🗺️ 點選地圖搜尋
+					</button>
+					<button onclick="showNearbyDevicesOnly()" 
+							style="padding: 12px 20px; background: linear-gradient(135deg, #4caf50, #388e3c); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.3s ease; box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);"
+							onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 12px rgba(76, 175, 80, 0.4)';"
+							onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 8px rgba(76, 175, 80, 0.3)';">
+						📍 直接顯示附近設備
+					</button>
+				</div>
+    
+    <!-- 🆕 新增控制選項 -->
+			<div style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.7); border-radius: 6px;">
+				<label style="display: flex; align-items: center; font-size: 12px; color: #1565c0; cursor: pointer;">
+					<input type="checkbox" id="showSearchCircle" checked style="margin-right: 8px;">
+					顯示搜尋範圍圓圈
+				</label>
+				<label style="display: flex; align-items: center; font-size: 12px; color: #1565c0; cursor: pointer; margin-top: 5px;">
+					<input type="checkbox" id="autoLoadFeeder" style="margin-right: 8px;">
+					自動載入最近的饋線
+				</label>
+				<label style="display: flex; align-items: center; font-size: 12px; color: #1565c0; cursor: pointer; margin-top: 5px;">
+					<input type="checkbox" id="showDevicesOnly" style="margin-right: 8px;">
+					只顯示設備標記（不顯示側邊欄）
+				</label>
+			</div>
+			
+			<!-- 🆕 在搜尋區域底部加入清除按鈕 -->
+			<div style="margin-top: 10px;">
+				<button onclick="clearSearchResults()" 
+						style="width: 100%; padding: 8px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+					🧹 清除搜尋結果
+				</button>
+			</div>
+</div>
+
 			<!-- 新增：圖號座標輸入區域 -->
 			<div class="coordinate-input-section">
 				<h3>🗺️ 圖號座標查詢</h3>
@@ -1909,7 +1976,15 @@ body {
 			// 🔧 修正版：地圖初始化 - 確保所有組件完全載入後再啟用手機導航
 async function initMap() {
   console.log('🗺️ 初始化地圖...');
-  
+     // 🔧 重要：初始化 Supabase
+    const supabaseReady = initSupabase();
+    if (!supabaseReady) {
+        console.warn('⚠️ Supabase 未正確初始化，鄰近搜尋功能將無法使用');
+        showToast('⚠️ 資料庫連接失敗，鄰近搜尋功能無法使用', 'warning');
+    } else {
+        console.log('✅ Supabase 已成功初始化，鄰近搜尋功能可用');
+        showToast('✅ 資料庫連接成功，鄰近搜尋功能已啟用', 'success');
+    }
   // 初始化超高速載入組件
   feederCache = new FeederCache();
   fastJsonLoader = new FastJsonLoader();
@@ -4578,26 +4653,53 @@ function adjustColor(color, percent) {
 
 
 	// 取得設備圖標
-	function getDeviceIcon(fsc) {
-		const icons = {
-			'106': '🔌',  // 線路節點
-			'108': '🔗',  // 變電所
-			'109': '🏷️',  // 電桿標示
-			'110': '☀️',  // 太陽能設備
-			'114': '🔄',  // 開關設備
-			'115': '⚡',  // 變壓器
-			'116': '🔌',  // 終端
-			'120': '🌍',  // 接地設備
-			'131': '❓'   // 其他設備
-		};
-		return icons[fsc] || '●';
-	}
+	// 🔧 修正版：取得設備圖示 - 使用正確的圖示
+function getDeviceIcon(fsc) {
+    const icons = {
+        '106': { 
+            url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', 
+            size: [20, 32], 
+            anchor: [10, 32] 
+        }, // 線路節點
+        '108': { 
+            url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', 
+            size: [25, 41], 
+            anchor: [12, 41] 
+        }, // 變電所
+        '114': { 
+            url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png', 
+            size: [20, 32], 
+            anchor: [10, 32] 
+        }, // 開關設備
+        '115': { 
+            url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png', 
+            size: [20, 32], 
+            anchor: [10, 32] 
+        }, // 變壓器
+        '110': { 
+            url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png', 
+            size: [20, 32], 
+            anchor: [10, 32] 
+        }, // 太陽能
+        '120': { 
+            url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-black.png', 
+            size: [18, 29], 
+            anchor: [9, 29] 
+        }, // 電桿設備
+    };
+    
+    return icons[fsc] || { 
+        url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png', 
+        size: [18, 29], 
+        anchor: [9, 29] 
+    };
+}
 
-	// 取得設備類型名稱
+	// 🔧 修正：取得設備類型名稱 - 配合您的 FSC 分類
 	function getDeviceTypeName(fsc) {
-		const names = {
+		const types = {
 			'106': '線路節點',
-			'108': '變電所',
+			'108': '變電所', 
 			'109': '電桿標示',
 			'110': '太陽能設備',
 			'114': '開關設備',
@@ -4606,7 +4708,7 @@ function adjustColor(color, percent) {
 			'120': '電桿設備',
 			'131': '其他設備'
 		};
-		return names[fsc] || '未知設備';
+		return types[fsc] || `FSC-${fsc}` || '未知設備';
 	}
 			  
 	function toggleLayer(categoryKey) {
@@ -6239,33 +6341,56 @@ function showMobileTab(tabName) {
 }
 
 
-// 🆕 新增：重新初始化所有控制項
+// 🔧 修正版：重新初始化所有控制項 - 確保事件綁定
 function reinitializeControls() {
     console.log('🔄 開始重新初始化控制項...');
     
     try {
-        // 重新初始化饋線下拉選單
-        if (feederList && feederList.length > 0) {
+        // 1. 重新初始化饋線下拉選單
+        if (typeof initializeFeederDropdown === 'function' && feederList && feederList.length > 0) {
             initializeFeederDropdown();
             console.log('✅ 饋線下拉選單已重新初始化');
         }
         
-        // 重新綁定檔案上傳事件
+        // 2. 重新綁定檔案上傳事件
         const fileInput = document.getElementById('fileInput');
-        if (fileInput) {
-            // 移除舊的事件監聽器
+        if (fileInput && typeof handleFileInput === 'function') {
             fileInput.removeEventListener('change', handleFileInput);
-            // 重新綁定
             fileInput.addEventListener('change', handleFileInput);
             console.log('✅ 檔案上傳事件已重新綁定');
         }
         
-        // 重新初始化其他控制項...
+        // 3. 檢查關鍵元素是否存在
+        const feederInput = document.getElementById('feederInput');
+        const feederDropdown = document.getElementById('feederDropdown');
+        const loadButton = document.querySelector('.load-feeder-btn');
+        
+        console.log('🔍 關鍵元素檢查:');
+        console.log('  - 饋線輸入框:', feederInput ? '✅ 存在' : '❌ 不存在');
+        console.log('  - 饋線下拉選單:', feederDropdown ? '✅ 存在' : '❌ 不存在');
+        console.log('  - 載入按鈕:', loadButton ? '✅ 存在' : '❌ 不存在');
+        
+        // 4. 重新綁定其他事件（如果需要）
+        bindAdditionalEvents();
+        
         console.log('✅ 所有控制項重新初始化完成');
+        return true;
         
     } catch (error) {
         console.error('❌ 重新初始化控制項失敗:', error);
+        return false;
     }
+}
+
+// 🆕 綁定額外的事件
+function bindAdditionalEvents() {
+    // 重新綁定搜尋半徑變化事件（如果有的話）
+    const searchRadius = document.getElementById('searchRadius');
+    if (searchRadius) {
+        // 可以在這裡添加半徑變化的事件處理
+    }
+    
+    // 重新綁定其他控制項的事件...
 }
 // 🆕 檔案輸入處理函數（從原本的匿名函數提取出來）
 function handleFileInput(event) {
@@ -6371,19 +6496,31 @@ function showInfoPanel() {
     sidebar.innerHTML = infoContent;
 }
 
-// 🆕 新增：恢復原始內容函數
+// 🔧 修正版：恢復原始內容函數 - 確保完全恢復
 function restoreOriginalContent() {
-    const sidebar = document.querySelector('.sidebar');
-    const originalContent = sidebar.getAttribute('data-original-content');
+    console.log('🔄 恢復原始內容...');
     
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) {
+        console.error('❌ 找不到側邊欄');
+        return false;
+    }
+    
+    const originalContent = sidebar.getAttribute('data-original-content');
     if (originalContent) {
         sidebar.innerHTML = originalContent;
         sidebar.removeAttribute('data-original-content');
         
         // 🔧 重要：重新初始化控制項
-        reinitializeControls();
+        setTimeout(() => {
+            reinitializeControls();
+            console.log('✅ 原始內容已恢復並重新初始化');
+        }, 100);
         
-        console.log('✅ 已恢復原始控制面板內容');
+        return true;
+    } else {
+        console.warn('⚠️ 沒有找到原始內容備份');
+        return false;
     }
 }
 // 🆕 切換到地圖標籤
@@ -8627,6 +8764,801 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDisasterMapButton();
     }, 1000);
 });
+
+// 🆕 Supabase 配置
+// 🔧 修正：使用您的 Supabase 配置
+const SUPABASE_URL = 'https://ulxrlnlebuxforumrsxi.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVseHJsbmxlYnV4Zm9ydW1yc3hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE2ODkxNjQsImV4cCI6MjA2NzI2NTE2NH0.xn9E81cq1-repD9ku-0UwTupqk-2e0f929Dnyl1OB6M';
+
+let supabase;
+
+// 🔧 修正：初始化 Supabase 連接
+function initSupabase() {
+    try {
+        if (typeof window.supabase !== 'undefined' && typeof window.supabase.createClient === 'function') {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log('✅ Supabase 連接成功');
+            return true;
+        } else {
+            console.error('❌ Supabase SDK 未載入');
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Supabase 連接失敗:', error);
+        return false;
+    }
+}
+
+// 🆕 搜尋鄰近設備和饋線
+// 🔧 修正版：搜尋鄰近設備和饋線 - 配合實際資料庫結構
+async function searchNearbyFeatures(lat, lng, radiusKm = 2) {
+    if (!supabase) {
+        showToast('❌ 資料庫連接未初始化', 'error');
+        return null;
+    }
+
+    try {
+        console.log(`🔍 搜尋位置 (${lat}, ${lng}) 半徑 ${radiusKm}km 內的設備和饋線...`);
+        
+        // 🔧 計算搜尋邊界（粗略估算）
+        const latDelta = radiusKm * 0.009; // 約 1km = 0.009度
+        const lngDelta = radiusKm * 0.009;
+        
+        // 🔧 修正：搜尋鄰近設備 - 使用實際的資料庫欄位
+        const { data: nearbyDevices, error: devicesError } = await supabase
+            .from('devices')
+            .select(`
+                id,
+                feeder_name,
+                device_id,
+                lat,
+                lng,
+                fsc,
+                area,
+                location_name,
+                properties
+            `)
+            .gte('lat', lat - latDelta)
+            .lte('lat', lat + latDelta)
+            .gte('lng', lng - lngDelta)
+            .lte('lng', lng + lngDelta)
+            .limit(200); // 限制結果數量
+
+        if (devicesError) {
+            console.error('設備查詢錯誤:', devicesError);
+            throw devicesError;
+        }
+
+        // 🔧 修正：搜尋鄰近饋線 - 使用實際的資料庫欄位
+        const { data: nearbyFeeders, error: feedersError } = await supabase
+            .from('feeders')
+            .select(`
+                id,
+                name,
+                center_lat,
+                center_lng,
+                device_count,
+                line_count,
+                total_length,
+                areas
+            `)
+            .gte('center_lat', lat - latDelta)
+            .lte('center_lat', lat + latDelta)
+            .gte('center_lng', lng - lngDelta)
+            .lte('center_lng', lng + lngDelta)
+            .limit(50); // 限制饋線數量
+
+        if (feedersError) {
+            console.error('饋線查詢錯誤:', feedersError);
+            throw feedersError;
+        }
+
+        // 🔧 計算精確距離並過濾
+        const devicesWithDistance = (nearbyDevices || []).map(device => {
+            const distance = calculateDistance(lat, lng, device.lat, device.lng);
+            return { ...device, distance };
+        }).filter(device => device.distance <= radiusKm)
+          .sort((a, b) => a.distance - b.distance);
+
+        const feedersWithDistance = (nearbyFeeders || []).map(feeder => {
+            const distance = calculateDistance(lat, lng, feeder.center_lat, feeder.center_lng);
+            return { ...feeder, distance };
+        }).filter(feeder => feeder.distance <= radiusKm)
+          .sort((a, b) => a.distance - b.distance);
+
+        console.log(`✅ 找到 ${devicesWithDistance.length} 個鄰近設備, ${feedersWithDistance.length} 條鄰近饋線`);
+
+        return {
+            devices: devicesWithDistance,
+            feeders: feedersWithDistance,
+            searchLocation: { lat, lng },
+            searchRadius: radiusKm
+        };
+
+    } catch (error) {
+        console.error('❌ 搜尋鄰近設備失敗:', error);
+        showToast(`❌ 搜尋失敗: ${error.message}`, 'error');
+        return null;
+    }
+}
+
+// 🆕 計算兩點間距離（公里）
+function calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371; // 地球半徑（公里）
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+// 🆕 全域變數：儲存搜尋相關的圖層
+let searchMarkers = [];
+let searchCircle = null;
+let deviceMarkers = [];
+// 🆕 顯示鄰近搜尋結果
+// 🔧 修正版：顯示鄰近搜尋結果 - 加入圓圈控制和設備顯示
+function displayNearbyResults(results) {
+    if (!results) return;
+
+    const { devices, feeders, searchLocation, searchRadius } = results;
+
+    // 清除之前的搜尋結果
+    clearSearchResults();
+
+    // 🔧 在地圖上標記搜尋中心
+    const searchMarker = L.marker([searchLocation.lat, searchLocation.lng], {
+        icon: L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        })
+    }).addTo(map);
+
+    searchMarker.bindPopup(`
+        <div style="text-align: center;">
+            <h4>📍 搜尋中心</h4>
+            <p>半徑: ${searchRadius < 1 ? (searchRadius * 1000) + 'm' : searchRadius + 'km'}</p>
+            <p>找到 ${devices.length} 個設備</p>
+            <p>找到 ${feeders.length} 條饋線</p>
+        </div>
+    `).openPopup();
+
+    searchMarkers.push(searchMarker);
+
+    // 🔧 根據設定顯示搜尋範圍圓圈
+    const showCircle = document.getElementById('showSearchCircle')?.checked !== false;
+    if (showCircle) {
+        searchCircle = L.circle([searchLocation.lat, searchLocation.lng], {
+            color: '#007bff',
+            fillColor: '#007bff',
+            fillOpacity: 0.1,
+            radius: searchRadius * 1000 // 轉換為公尺
+        }).addTo(map);
+    }
+
+    // 🆕 在地圖上顯示附近的設備
+    displayDevicesOnMap(devices);
+
+    // 🔧 在側邊欄顯示結果
+    showNearbyResultsInSidebar(results);
+
+    // 🔧 調整地圖視野
+    const bounds = L.latLngBounds();
+    bounds.extend([searchLocation.lat, searchLocation.lng]);
+    
+    devices.forEach(device => {
+        bounds.extend([device.lat, device.lng]);
+    });
+    
+    feeders.forEach(feeder => {
+        if (feeder.center_lat && feeder.center_lng) {
+            bounds.extend([feeder.center_lat, feeder.center_lng]);
+        }
+    });
+
+    if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+    }
+
+    // 🆕 自動載入最近的饋線（如果啟用）
+    const autoLoad = document.getElementById('autoLoadFeeder')?.checked;
+    if (autoLoad && feeders.length > 0) {
+        const nearestFeeder = feeders[0];
+        showToast(`🔄 自動載入最近的饋線: ${nearestFeeder.name}`, 'info');
+        setTimeout(() => {
+            loadNearbyFeeder(nearestFeeder.name, nearestFeeder.distance);
+        }, 1000);
+    }
+
+    const radiusText = searchRadius < 1 ? `${searchRadius * 1000}公尺` : `${searchRadius}公里`;
+    showToast(`🎯 找到 ${devices.length} 個設備和 ${feeders.length} 條饋線 (半徑${radiusText})`, 'success');
+}
+
+// 🆕 清除搜尋結果
+// 🔧 修正版：清除搜尋結果 - 確保圓圈能正確移除
+function clearSearchResults() {
+    console.log('🧹 開始清除搜尋結果...');
+    
+    // 清除搜尋標記
+    searchMarkers.forEach(marker => {
+        if (map.hasLayer(marker)) {
+            map.removeLayer(marker);
+        }
+    });
+    searchMarkers = [];
+    
+    // 🔧 重要修正：確保搜尋圓圈能正確移除
+    if (searchCircle && map.hasLayer(searchCircle)) {
+        map.removeLayer(searchCircle);
+        searchCircle = null;
+        console.log('✅ 搜尋圓圈已移除');
+    }
+    
+    // 清除設備標記
+    deviceMarkers.forEach(marker => {
+        if (map.hasLayer(marker)) {
+            map.removeLayer(marker);
+        }
+    });
+    deviceMarkers = [];
+    
+    console.log('✅ 搜尋結果清除完成');
+}
+// 🆕 在地圖上顯示設備
+// 🔧 修正版：在地圖上顯示設備 - 避免 Leaflet 錯誤
+function displayDevicesOnMap(devices) {
+    // 清除之前的設備標記
+    deviceMarkers.forEach(marker => {
+        try {
+            if (map.hasLayer(marker)) {
+                map.removeLayer(marker);
+            }
+        } catch (error) {
+            console.warn('清除設備標記時發生錯誤:', error);
+        }
+    });
+    deviceMarkers = [];
+
+    devices.forEach((device, index) => {
+        try {
+            const deviceIcon = getDeviceIcon(device.fsc);
+            
+            const marker = L.marker([device.lat, device.lng], {
+                icon: L.icon({
+                    iconUrl: deviceIcon.url,
+                    iconSize: deviceIcon.size,
+                    iconAnchor: deviceIcon.anchor,
+                    popupAnchor: [1, -34]
+                })
+            });
+
+            // 🔧 重要：先加入到陣列，再加入到地圖
+            deviceMarkers.push(marker);
+            marker.addTo(map);
+
+            // 設備資訊彈窗
+            marker.bindPopup(`
+                <div style="min-width: 200px;">
+                    <h4 style="margin: 0 0 10px 0; color: #007bff;">${getDeviceTypeName(device.fsc)}</h4>
+                    <p style="margin: 5px 0;"><strong>設備ID:</strong> ${device.device_id || 'N/A'}</p>
+                    <p style="margin: 5px 0;"><strong>饋線:</strong> ${device.feeder_name}</p>
+                    <p style="margin: 5px 0;"><strong>位置:</strong> ${device.location_name || 'N/A'}</p>
+                    <p style="margin: 5px 0;"><strong>區域:</strong> ${device.area || 'N/A'}</p>
+                    <p style="margin: 5px 0;"><strong>距離:</strong> ${device.distance.toFixed(2)} km</p>
+                    <p style="margin: 5px 0;"><strong>座標:</strong> ${device.lat.toFixed(6)}, ${device.lng.toFixed(6)}</p>
+                    <div style="margin-top: 10px;">
+                        <button onclick="loadNearbyFeeder('${device.feeder_name}', 0)" 
+                                style="width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            載入此設備的饋線
+                        </button>
+                    </div>
+                </div>
+            `);
+
+        } catch (error) {
+            console.error(`創建設備標記 ${index} 時發生錯誤:`, error, device);
+        }
+    });
+
+    console.log(`✅ 成功顯示 ${deviceMarkers.length} 個設備標記`);
+}
+
+// 🔧 調試版：在側邊欄顯示搜尋結果 - 加入更多調試資訊
+function showNearbyResultsInSidebar(results) {
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) {
+        console.error('❌ 找不到側邊欄');
+        return;
+    }
+
+    console.log('📋 準備在側邊欄顯示搜尋結果...');
+    
+    // 🔧 重要：暫存原始內容前先檢查
+    if (!sidebar.getAttribute('data-original-content')) {
+        const originalContent = sidebar.innerHTML;
+        sidebar.setAttribute('data-original-content', originalContent);
+        console.log('💾 已備份原始側邊欄內容');
+    }
+
+    const { devices, feeders, searchLocation, searchRadius } = results;
+
+    const resultsHtml = `
+        <div style="padding: 20px; background: white; height: 100%; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="color: #2c3e50; margin: 0;">🎯 鄰近搜尋結果</h3>
+                <button onclick="restoreOriginalContentSafe()" 
+                        style="background: #6c757d; color: white; border: none; padding: 5px 10px; 
+                               border-radius: 4px; cursor: pointer; font-size: 12px;">
+                    ✕ 關閉
+                </button>
+            </div>
+
+            <!-- 🆕 調試資訊 -->
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 11px; color: #666;">
+                <strong>🔧 調試資訊:</strong><br>
+                饋線輸入框: ${document.getElementById('feederInput') ? '✅ 存在' : '❌ 不存在'}<br>
+                載入按鈕: ${document.querySelector('.load-feeder-btn') ? '✅ 存在' : '❌ 不存在'}
+            </div>
+
+            <!-- 搜尋資訊 -->
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #1976d2;">📍 搜尋範圍</h4>
+                <p style="margin: 5px 0; font-size: 13px;">中心: ${searchLocation.lat.toFixed(6)}, ${searchLocation.lng.toFixed(6)}</p>
+                <p style="margin: 5px 0; font-size: 13px;">半徑: ${searchRadius} 公里</p>
+            </div>
+
+            <!-- 饋線清單 -->
+            <div style="margin-bottom: 25px;">
+                <h4 style="color: #28a745; margin-bottom: 15px;">⚡ 鄰近饋線 (${feeders.length})</h4>
+                ${feeders.length === 0 ? 
+                    '<p style="color: #666; text-align: center; padding: 20px;">無鄰近饋線</p>' :
+                    feeders.map(feeder => `
+                        <div style="margin-bottom: 12px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #28a745;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="color: #28a745; font-size: 16px;">⚡ ${feeder.name}</strong>
+                                    <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                                        設備: ${feeder.device_count || 0} | 線段: ${feeder.line_count || 0}
+                                    </div>
+                                </div>
+                                <span style="background: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px;">
+                                    ${feeder.distance.toFixed(2)} km
+                                </span>
+                            </div>
+                            <div style="margin-top: 8px;">
+                                <button onclick="loadNearbyFeederSafe('${feeder.name}', ${feeder.distance})" 
+                                        style="width: 100%; padding: 8px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                    🗺️ 載入此饋線
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')
+                }
+            </div>
+
+            <!-- 設備清單 -->
+            <div style="margin-bottom: 25px;">
+                <h4 style="color: #007bff; margin-bottom: 15px;">📍 鄰近設備 (${devices.length})</h4>
+                ${devices.length === 0 ? 
+                    '<p style="color: #666; text-align: center; padding: 20px;">無鄰近設備</p>' :
+                    devices.slice(0, 10).map(device => `
+                        <div style="margin-bottom: 10px; padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #007bff;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="color: #007bff; font-size: 14px;">${getDeviceTypeName(device.fsc)}</strong>
+                                    <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                                        饋線: ${device.feeder_name}
+                                    </div>
+                                </div>
+                                <span style="background: #007bff; color: white; padding: 2px 6px; border-radius: 8px; font-size: 10px;">
+                                    ${device.distance.toFixed(2)} km
+                                </span>
+                            </div>
+                        </div>
+                    `).join('')
+                }
+            </div>
+
+            <!-- 操作按鈕 -->
+            <div style="position: sticky; bottom: 0; background: white; padding: 15px 0; border-top: 1px solid #eee;">
+                <button onclick="restoreOriginalContentSafe()" 
+                        style="width: 100%; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                    ← 返回控制面板
+                </button>
+            </div>
+        </div>
+    `;
+
+    sidebar.innerHTML = resultsHtml;
+    console.log('✅ 搜尋結果已顯示在側邊欄');
+}
+// 🆕 安全版本的恢復函數
+function restoreOriginalContentSafe() {
+    console.log('🔒 安全恢復原始內容');
+    
+    if (restoreOriginalContent()) {
+        showToast('✅ 已返回控制面板', 'success');
+    } else {
+        // 備用方案：重新載入頁面（最後手段）
+        if (confirm('無法正常返回控制面板，是否重新載入頁面？')) {
+            location.reload();
+        }
+    }
+}
+// 🆕 安全版本的載入饋線函數
+function loadNearbyFeederSafe(feederName, distance) {
+    console.log(`🔒 安全載入饋線: ${feederName}`);
+    
+    // 先嘗試恢復原始內容
+    if (restoreOriginalContent()) {
+        // 等待DOM更新
+        setTimeout(() => {
+            loadNearbyFeeder(feederName, distance);
+        }, 200);
+    } else {
+        // 如果恢復失敗，直接嘗試載入
+        loadNearbyFeeder(feederName, distance);
+    }
+}
+
+// 🔧 完全修正版：載入鄰近饋線 - 多重檢查和備用方案
+function loadNearbyFeeder(feederName, distance) {
+    console.log(`⚡ 載入鄰近饋線: ${feederName} (距離: ${distance.toFixed(2)}km)`);
+    
+    // 🔧 方法1：直接查找饋線輸入框
+    let feederInput = document.getElementById('feederInput');
+    
+    if (feederInput) {
+        executeFeederLoadDirect(feederInput, feederName);
+        return;
+    }
+    
+    // 🔧 方法2：如果在搜尋結果頁面，先恢復原始內容
+    console.warn('⚠️ 未找到饋線輸入框，嘗試恢復原始內容...');
+    restoreOriginalContent();
+    
+    // 等待DOM更新後再次嘗試
+    setTimeout(() => {
+        feederInput = document.getElementById('feederInput');
+        if (feederInput) {
+            executeFeederLoadDirect(feederInput, feederName);
+        } else {
+            // 🔧 方法3：手動切換到控制面板（手機版）
+            console.warn('⚠️ 仍未找到，嘗試切換到控制面板...');
+            switchToControlsPanel();
+            
+            setTimeout(() => {
+                feederInput = document.getElementById('feederInput');
+                if (feederInput) {
+                    executeFeederLoadDirect(feederInput, feederName);
+                } else {
+                    // 🔧 方法4：最後的備用方案
+                    showFeederLoadFallback(feederName);
+                }
+            }, 500);
+        }
+    }, 300);
+}
+
+// 🆕 直接執行饋線載入
+function executeFeederLoadDirect(feederInput, feederName) {
+    try {
+        feederInput.value = feederName;
+        
+        // 🔧 觸發 input 事件以同步下拉選單
+        const inputEvent = new Event('input', { bubbles: true });
+        feederInput.dispatchEvent(inputEvent);
+        
+        showToast(`🔄 正在載入饋線 ${feederName}...`, 'info');
+        
+        // 🔧 確保呼叫載入函數
+        if (typeof loadFeederFromCloud === 'function') {
+            loadFeederFromCloud();
+        } else {
+            // 備用：直接點擊載入按鈕
+            const loadButton = document.querySelector('.load-feeder-btn');
+            if (loadButton) {
+                loadButton.click();
+            } else {
+                throw new Error('找不到載入函數和按鈕');
+            }
+        }
+        
+        console.log(`✅ 成功設定饋線: ${feederName}`);
+        
+    } catch (error) {
+        console.error('❌ 執行饋線載入失敗:', error);
+        showFeederLoadFallback(feederName);
+    }
+}
+// 🆕 切換到控制面板（處理手機版情況）
+function switchToControlsPanel() {
+    // 檢查是否為手機版
+    const isMobile = window.innerWidth <= 768;
+    
+    if (isMobile) {
+        // 手機版：點擊控制標籤
+        const controlsTab = document.querySelector('.nav-tab[data-tab="controls"]');
+        if (controlsTab) {
+            controlsTab.click();
+            console.log('📱 已切換到手機版控制面板');
+        }
+    }
+    
+    // 確保側邊欄顯示
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.style.display = 'block';
+    }
+}
+// 🆕 備用方案：顯示手動載入提示
+function showFeederLoadFallback(feederName) {
+    console.error('❌ 所有自動載入方案都失敗，顯示手動提示');
+    
+    // 創建提示彈窗
+    const fallbackPopup = L.popup({
+        closeButton: true,
+        autoClose: false,
+        closeOnEscapeKey: true,
+        className: 'feeder-load-fallback'
+    })
+    .setLatLng(map.getCenter())
+    .setContent(`
+        <div style="text-align: center; padding: 10px;">
+            <h4 style="color: #dc3545; margin: 0 0 10px 0;">⚠️ 自動載入失敗</h4>
+            <p style="margin: 5px 0; font-size: 14px;">請手動載入饋線：</p>
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                <strong style="font-size: 16px; color: #007bff;">${feederName}</strong>
+            </div>
+            <div style="font-size: 12px; color: #666; line-height: 1.4;">
+                1. 關閉此彈窗<br>
+                2. 在左側控制面板找到「饋線輸入框」<br>
+                3. 輸入「${feederName}」<br>
+                4. 點擊「載入饋線資料」按鈕
+            </div>
+            <div style="margin-top: 15px;">
+                <button onclick="copyFeederName('${feederName}')" 
+                        style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">
+                    📋 複製饋線名稱
+                </button>
+                <button onclick="map.closePopup()" 
+                        style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    關閉
+                </button>
+            </div>
+        </div>
+    `)
+    .openOn(map);
+    
+    // 同時顯示 toast 提示
+    showToast(`⚠️ 請手動載入饋線：${feederName}`, 'warning');
+}
+
+// 🆕 複製饋線名稱到剪貼簿
+function copyFeederName(feederName) {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(feederName).then(() => {
+            showToast(`📋 已複製饋線名稱：${feederName}`, 'success');
+            map.closePopup();
+        }).catch(err => {
+            console.error('複製失敗:', err);
+            fallbackCopyFeederName(feederName);
+        });
+    } else {
+        fallbackCopyFeederName(feederName);
+    }
+}
+
+// 🆕 備用複製方法
+function fallbackCopyFeederName(feederName) {
+    const textArea = document.createElement('textarea');
+    textArea.value = feederName;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
+        showToast(`📋 已複製饋線名稱：${feederName}`, 'success');
+        map.closePopup();
+    } catch (err) {
+        console.error('複製失敗:', err);
+        showToast('❌ 複製失敗，請手動記住饋線名稱', 'error');
+    }
+    
+    document.body.removeChild(textArea);
+}
+// 🆕 執行饋線載入的輔助函數
+function executeFeederLoad(feederInput, feederName) {
+    feederInput.value = feederName;
+    showToast(`🔄 正在載入饋線 ${feederName}...`, 'info');
+    
+    // 🔧 確保呼叫正確的載入函數
+    if (typeof loadFeederFromCloud === 'function') {
+        loadFeederFromCloud();
+    } else {
+        // 🔧 備用方案：直接觸發載入按鈕點擊
+        const loadButton = document.querySelector('.load-feeder-btn') || 
+                          document.querySelector('button[onclick*="loadFeeder"]');
+        if (loadButton) {
+            loadButton.click();
+        } else {
+            showToast('❌ 找不到載入按鈕', 'error');
+            return;
+        }
+    }
+    
+    // 延遲恢復控制面板
+    setTimeout(() => {
+        restoreOriginalContent();
+    }, 1500);
+}
+// 🆕 重新搜尋鄰近設備
+function searchNearbyAgain() {
+    restoreOriginalContent();
+    
+    setTimeout(() => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    performNearbySearch(lat, lng);
+                },
+                error => {
+                    showToast('❌ 無法取得位置，請手動點選地圖', 'error');
+                    enableMapClickForSearch();
+                }
+            );
+        } else {
+            showToast('❌ 瀏覽器不支援定位，請手動點選地圖', 'error');
+            enableMapClickForSearch();
+        }
+    }, 300);
+}
+
+// 🔧 修正版：啟用地圖點選搜尋 - 使用選中的半徑
+function enableMapClickForSearch() {
+    showToast('📍 請點選地圖上的位置進行搜尋', 'info');
+    
+    map.getContainer().style.cursor = 'crosshair';
+    
+    const clickHandler = function(e) {
+        map.off('click', clickHandler);
+        map.getContainer().style.cursor = '';
+        
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        
+        // 🔧 重要修正：使用選中的半徑，而不是固定的2公里
+        const radiusSelect = document.getElementById('searchRadius');
+        const radius = parseFloat(radiusSelect.value);
+        
+        performNearbySearch(lat, lng, radius);
+    };
+    
+    map.on('click', clickHandler);
+}
+
+// 🆕 執行鄰近搜尋
+// 🔧 修正版：執行鄰近搜尋 - 加入設備顯示選項
+async function performNearbySearch(lat, lng, radius = 2) {
+    showToast('🔍 正在搜尋鄰近設備和饋線...', 'info');
+    
+    const results = await searchNearbyFeatures(lat, lng, radius);
+    if (results) {
+        // 🆕 檢查是否只顯示設備
+        const showDevicesOnly = document.getElementById('showDevicesOnly')?.checked;
+        
+        if (showDevicesOnly) {
+            // 只顯示設備，不顯示側邊欄
+            clearSearchResults();
+            displayDevicesOnMap(results.devices);
+            
+            // 調整地圖視野
+            const bounds = L.latLngBounds();
+            bounds.extend([lat, lng]);
+            results.devices.forEach(device => {
+                bounds.extend([device.lat, device.lng]);
+            });
+            
+            if (bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [20, 20] });
+            }
+            
+            const radiusText = radius < 1 ? `${radius * 1000}公尺` : `${radius}公里`;
+            showToast(`📍 顯示 ${results.devices.length} 個附近設備 (半徑${radiusText})`, 'success');
+        } else {
+            // 正常顯示（包含側邊欄）
+            displayNearbyResults(results);
+        }
+    }
+}
+
+// 🆕 從當前位置搜尋
+function searchNearbyFromLocation() {
+    const radiusSelect = document.getElementById('searchRadius');
+    const radius = parseFloat(radiusSelect.value);
+    
+    if (navigator.geolocation) {
+        showToast('📍 正在取得您的位置...', 'info');
+        
+        navigator.geolocation.getCurrentPosition(
+            position => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                performNearbySearch(lat, lng, radius);
+            },
+            error => {
+                console.error('定位失敗:', error);
+                showToast('❌ 無法取得位置，請檢查定位權限', 'error');
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 60000
+            }
+        );
+    } else {
+        showToast('❌ 您的瀏覽器不支援定位功能', 'error');
+    }
+}
+
+// 🆕 只顯示附近設備（不顯示饋線列表）
+async function showNearbyDevicesOnly() {
+    const radiusSelect = document.getElementById('searchRadius');
+    const radius = parseFloat(radiusSelect.value);
+    
+    if (navigator.geolocation) {
+        showToast('📍 正在取得您的位置並顯示附近設備...', 'info');
+        
+        navigator.geolocation.getCurrentPosition(
+            async position => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                
+                const results = await searchNearbyFeatures(lat, lng, radius);
+                if (results && results.devices.length > 0) {
+                    // 清除之前的結果
+                    clearSearchResults();
+                    
+                    // 只顯示設備，不顯示側邊欄結果
+                    displayDevicesOnMap(results.devices);
+                    
+                    // 調整地圖視野到設備範圍
+                    const bounds = L.latLngBounds();
+                    bounds.extend([lat, lng]);
+                    results.devices.forEach(device => {
+                        bounds.extend([device.lat, device.lng]);
+                    });
+                    
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds, { padding: [20, 20] });
+                    }
+                    
+                    const radiusText = radius < 1 ? `${radius * 1000}公尺` : `${radius}公里`;
+                    showToast(`📍 顯示 ${results.devices.length} 個附近設備 (半徑${radiusText})`, 'success');
+                } else {
+                    showToast('❌ 附近沒有找到設備', 'warning');
+                }
+            },
+            error => {
+                console.error('定位失敗:', error);
+                showToast('❌ 無法取得位置，請檢查定位權限', 'error');
+            }
+        );
+    } else {
+        showToast('❌ 您的瀏覽器不支援定位功能', 'error');
+    }
+}
 		  </script>
 		  <!-- 照片放大模態框 -->
 		<div id="photo-modal" class="photo-modal">
