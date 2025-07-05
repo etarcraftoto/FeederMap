@@ -6469,8 +6469,8 @@ function initMobileOptimizations() {
     }
 }
 
-
 // 🆕 載入停電資料
+// 🔧 修改：載入停電資料函數 - 更新狀態顯示邏輯
 async function loadOutageData() {
     const outageApiUrl = 'https://script.google.com/macros/s/AKfycbygPaZiiAgb4gqSBP4rYDz8yqXMThTm7r6YyeJoFeRbv4tL57UWlc8YbQ5-SrkVfD-n/exec';
     
@@ -6483,10 +6483,16 @@ async function loadOutageData() {
         
         if (result && result.data) {
             outageData = result.data;
-            console.log(`✅ 成功載入 ${outageData.length} 筆停電資料`);
             
-            // 更新狀態顯示
-            updateOutageStatus(`✅ 已載入 ${outageData.length} 筆停電資料 (${new Date(result.meta.lastUpdate).toLocaleString('zh-TW')})`);
+            // 🔧 修改：統計有饋線資料的記錄數量
+            const validRecords = outageData.filter(record => 
+                record.饋線 && record.饋線.toString().trim() !== ''
+            );
+            
+            console.log(`✅ 成功載入 ${outageData.length} 筆停電資料，其中 ${validRecords.length} 筆有饋線資料`);
+            
+            // 🔧 修改：狀態顯示改為統計有饋線資料的數量
+            updateOutageStatus(`✅ 已載入 ${validRecords.length} 筆有饋線資料的停電記錄 (${new Date(result.meta.lastUpdate).toLocaleString('zh-TW')})`);
             
             // 建立饋線跳脫清單
             createOutageFeederList();
@@ -6503,6 +6509,9 @@ async function loadOutageData() {
     }
 }
 
+
+
+
 // 🆕 更新停電狀態顯示
 function updateOutageStatus(message) {
     const statusElement = document.getElementById('outageStatus');
@@ -6511,15 +6520,23 @@ function updateOutageStatus(message) {
     }
 }
 
-// 🔧 修改：建立饋線跳脫清單 - 加入狀態顏色
+// 🔧 修改：建立饋線跳脫清單 - 統計有饋線資料的記錄數量
 function createOutageFeederList() {
     const listContainer = document.getElementById('outageFeederList');
     if (!listContainer || !outageData) return;
     
+    // 🔧 修改：統計有饋線資料的記錄數量
+    const validRecords = outageData.filter(record => 
+        record.饋線 && record.饋線.toString().trim() !== ''
+    );
+    
+    // 更新狀態顯示 - 使用有效記錄數量
+    updateOutageStatus(`✅ 已載入 ${validRecords.length} 筆有饋線資料的停電記錄 (共 ${outageData.length} 筆原始資料)`);
+    
     // 提取所有跳脫的饋線
     const feederMap = new Map();
     
-    outageData.forEach(record => {
+    validRecords.forEach(record => {
         const feeder = record.饋線;
         if (feeder && feeder.trim() !== '') {
             if (!feederMap.has(feeder)) {
@@ -6539,7 +6556,7 @@ function createOutageFeederList() {
             const recordCount = records.length;
             const latestRecord = records[0]; // 假設第一筆是最新的
             
-            // 🆕 判斷饋線狀態顏色
+            // 判斷饋線狀態顏色
             const statusColor = getFeederStatusColor(records);
             const statusText = getFeederStatusText(records);
             
