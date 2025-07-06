@@ -1596,12 +1596,12 @@ body {
 				<div style="margin-bottom: 15px;">
 					<label style="display: block; margin-bottom: 8px; font-weight: bold; color: #1565c0;">搜尋半徑</label>
 					<select id="searchRadius" style="width: 100%; padding: 8px; border: 2px solid #42a5f5; border-radius: 4px; background: white; color: #1565c0;">
-						<option value="0.1">100 公尺</option>
+						<option value="0.1"  selected>100 公尺</option>
 						<option value="0.2">200 公尺</option>
 						<option value="0.5">500 公尺</option>
 						<option value="0.75">750 公尺</option>
 						<option value="1">1 公里</option>
-						<option value="2" selected>2 公里</option>
+						<option value="2">2 公里</option>
 						<option value="5">5 公里</option>
 						<option value="10">10 公里</option>
 					</select>
@@ -1850,18 +1850,6 @@ body {
 							<div class="layer-option">
 								<input type="checkbox" id="kaohsiungSlopeLayer" onchange="toggleOverlayLayer('kaohsiungSlope')">
 								<label for="kaohsiungSlopeLayer">高雄山坡地範圍</label>
-							</div>
-							<div class="layer-option">
-								<input type="checkbox" id="industrialZoneLayer" onchange="toggleOverlayLayer('industrialZone')">
-								<label for="industrialZoneLayer">工業區範圍</label>
-							</div>
-							<div class="layer-option">
-								<input type="checkbox" id="industrialLandLayer" onchange="toggleOverlayLayer('industrialLand')">
-								<label for="industrialLandLayer">工業區地籍圖</label>
-							</div>
-							<div class="layer-option">
-								<input type="checkbox" id="industrialUserLayer" onchange="toggleOverlayLayer('industrialUser')">
-								<label for="industrialUserLayer">工業區用戶名</label>
 							</div>
 							<div class="layer-option">
 								<input type="checkbox" id="urbanPlanLayer" onchange="toggleOverlayLayer('urbanPlan')">
@@ -2207,30 +2195,6 @@ function setupMapLayers() {
 						transparent: true,
 						version: '1.3.0',
 						attribution: '© 高雄市水土保持局'
-					}),
-					
-					industrialZone: L.tileLayer.wms('https://idbgis.ntpu.edu.tw/IDBMapService/GetMap.ashx', {
-						layers: 'A03',
-						format: 'image/png',
-						transparent: true,
-						version: '1.1.1',
-						attribution: '© NTPU IDB GIS'
-					}),
-					
-					industrialLand: L.tileLayer.wms('https://idbgis.ntpu.edu.tw/IDBMapService/GetMap.ashx', {
-						layers: 'C01',
-						format: 'image/png',
-						transparent: true,
-						version: '1.1.1',
-						attribution: '© NTPU IDB GIS'
-					}),
-					
-					industrialUser: L.tileLayer.wms('https://idbgis.ntpu.edu.tw/IDBMapService/GetMap.ashx', {
-						layers: 'B01',
-						format: 'image/png',
-						transparent: true,
-						version: '1.1.1',
-						attribution: '© NTPU IDB GIS'
 					}),
 					
 					urbanPlan: L.tileLayer.wms('https://urbanproxy.kcg.gov.tw/arcgis/services/UrbanAPI/KcgUrbanDataForUrbanAPI/MapServer/WmsServer', {
@@ -6233,9 +6197,6 @@ function getOverlayDisplayName(layerName) {
         village: '村里界圖',
         wayMeter: '公路里程標誌',
         kaohsiungSlope: '高雄山坡地範圍',
-        industrialZone: '工業區範圍',
-        industrialLand: '工業區地籍圖',
-        industrialUser: '工業區用戶名',
         urbanPlan: '高雄市都市計畫圖',
         urbanPlanBoundary: '高雄市都市計畫範圍圖',
         trafficNetwork: '國土計畫圖'
