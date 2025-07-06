@@ -6641,75 +6641,177 @@ function updateOutageStatus(message) {
     }
 }
 
-// 🔧 修改：建立饋線跳脫清單 - 統計有饋線資料的記錄數量
+// 🔧 修改：建立饋線跳脫清單 - 處理重複饋線代號，錯開顯示
 function createOutageFeederList() {
-    const listContainer = document.getElementById('outageFeederList');
-    if (!listContainer || !outageData) return;
-    
-    // 🔧 修改：統計有饋線資料的記錄數量
-    const validRecords = outageData.filter(record => 
-        record.饋線 && record.饋線.toString().trim() !== ''
-    );
-    
-    // 更新狀態顯示 - 使用有效記錄數量
-    updateOutageStatus(`✅ 已載入 ${validRecords.length} 筆有饋線資料的停電記錄 (共 ${outageData.length} 筆原始資料)`);
-    
-    // 提取所有跳脫的饋線
-    const feederMap = new Map();
-    
-    validRecords.forEach(record => {
-        const feeder = record.饋線;
-        if (feeder && feeder.trim() !== '') {
-            if (!feederMap.has(feeder)) {
-                feederMap.set(feeder, []);
-            }
-            feederMap.get(feeder).push(record);
-        }
-    });
-    
-    // 建立清單 HTML
-    let listHtml = '';
-    
-    if (feederMap.size === 0) {
-        listHtml = '<div style="text-align: center; color: #28a745; padding: 20px;">✅ 目前無饋線跳脫</div>';
-    } else {
-        feederMap.forEach((records, feeder) => {
-            const recordCount = records.length;
-            const latestRecord = records[0]; // 假設第一筆是最新的
-            
-            // 判斷饋線狀態顏色
-            const statusColor = getFeederStatusColor(records);
-            const statusText = getFeederStatusText(records);
-            
-            listHtml += `
-                <div class="outage-feeder-item" style="margin-bottom: 10px; padding: 12px; background: white; border-radius: 6px; border-left: 4px solid ${statusColor}; cursor: pointer;"
-                     onclick="selectOutageFeeder('${feeder}')">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong style="color: ${statusColor}; font-size: 14px;">⚡ ${feeder}</strong>
-                            <div style="font-size: 11px; color: #666; margin-top: 2px;">
-                                ${latestRecord.時間} | ${latestRecord.處理部門}
-                            </div>
-                            <div style="font-size: 10px; color: ${statusColor}; margin-top: 2px; font-weight: bold;">
-                                ${statusText}
-                            </div>
-                        </div>
-                        <div style="text-align: right;">
-                            <span style="background: ${statusColor}; color: white; padding: 2px 6px; border-radius: 12px; font-size: 10px;">
-                                ${recordCount} 筆
-                            </span>
-                        </div>
-                    </div>
-                    <div style="font-size: 11px; color: #666; margin-top: 4px;">
-                        ${latestRecord.故障區間 || '查詢中...'}
-                    </div>
-                </div>
-            `;
-        });
-    }
-    
-    listContainer.innerHTML = listHtml;
+  const listContainer = document.getElementById('outageFeederList');
+  if (!listContainer || !outageData) return;
+
+  // 🔧 修改：統計有饋線資料的記錄數量
+  const validRecords = outageData.filter(record => 
+      record.饋線 && record.饋線.toString().trim() !== ''
+  );
+
+  // 更新狀態顯示 - 使用有效記錄數量
+  updateOutageStatus(`✅ 已載入 ${validRecords.length} 筆有饋線資料的停電記錄 (共 ${outageData.length} 筆原始資料)`);
+
+  // 🔧 重要修改：處理重複饋線代號，按時間和編號分組
+  const feederMap = new Map();
+
+  validRecords.forEach(record => {
+      const feeder = record.饋線;
+      if (feeder && feeder.trim() !== '') {
+          // 🆕 建立唯一的群組鍵：饋線代號 + 時間段 + 編號範圍
+          const groupKey = createFeederGroupKey(record, feeder);
+          
+          if (!feederMap.has(groupKey)) {
+              feederMap.set(groupKey, {
+                  feeder: feeder,
+                  records: [],
+                  timeGroup: getTimeGroup(record.時間),
+                  numberRange: getNumberRange(record.編號)
+              });
+          }
+          feederMap.get(groupKey).records.push(record);
+      }
+  });
+
+  // 建立清單 HTML
+  let listHtml = '';
+
+  if (feederMap.size === 0) {
+      listHtml = '<div style="text-align: center; color: #28a745; padding: 20px;">✅ 目前無饋線跳脫</div>';
+  } else {
+      // 🔧 修改：按時間排序，最新的在前面
+      const sortedGroups = Array.from(feederMap.entries()).sort((a, b) => {
+          const timeA = new Date(a[1].records[0].時間).getTime();
+          const timeB = new Date(b[1].records[0].時間).getTime();
+          return timeB - timeA; // 降序排列，最新在前
+      });
+
+      sortedGroups.forEach(([groupKey, groupData]) => {
+          const records = groupData.records;
+          const feeder = groupData.feeder;
+          const recordCount = records.length;
+          const latestRecord = records[0]; // 假設第一筆是最新的
+          
+          // 判斷饋線狀態顏色
+          const statusColor = getFeederStatusColor(records);
+          const statusText = getFeederStatusText(records);
+          
+          // 🆕 產生顯示標題，區分重複的饋線
+          const displayTitle = generateDisplayTitle(feeder, groupData, records);
+          
+          listHtml += `
+              <div class="outage-feeder-item" style="margin-bottom: 10px; padding: 12px; background: white; border-radius: 6px; border-left: 4px solid ${statusColor}; cursor: pointer;"
+                   onclick="selectOutageFeeder('${feeder}', '${groupKey}')">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <div>
+                          <strong style="color: ${statusColor}; font-size: 14px;">⚡ ${displayTitle}</strong>
+                          <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                              ${latestRecord.時間} | ${latestRecord.處理部門}
+                          </div>
+                          <div style="font-size: 10px; color: ${statusColor}; margin-top: 2px; font-weight: bold;">
+                              ${statusText}
+                          </div>
+                          ${getGroupDescription(groupData, recordCount)}
+                      </div>
+                      <div style="text-align: right;">
+                          <span style="background: ${statusColor}; color: white; padding: 2px 6px; border-radius: 12px; font-size: 10px;">
+                              ${recordCount} 筆
+                          </span>
+                      </div>
+                  </div>
+                  <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                      ${latestRecord.故障區間 || '查詢中...'}
+                  </div>
+              </div>
+          `;
+      });
+  }
+
+  listContainer.innerHTML = listHtml;
 }
+// 🆕 建立饋線群組鍵
+function createFeederGroupKey(record, feeder) {
+  const time = record.時間 || '';
+  const number = record.編號 || '';
+  const department = record.處理部門 || '';
+  
+  // 提取時間的小時部分
+  const timeGroup = getTimeGroup(time);
+  
+  // 提取編號範圍
+  const numberRange = getNumberRange(number);
+  
+  // 組合成唯一鍵
+  return `${feeder}_${timeGroup}_${numberRange}_${department}`;
+}
+
+// 🆕 取得時間群組（按小時分組）
+function getTimeGroup(timeStr) {
+  if (!timeStr) return 'unknown';
+  
+  try {
+      // 嘗試解析時間格式，例如 "2024/01/15 14:30:25"
+      const match = timeStr.match(/(\d{4}\/\d{2}\/\d{2})\s+(\d{2}):/);
+      if (match) {
+          return `${match[1]}_${match[2]}h`; // 例如 "2024/01/15_14h"
+      }
+      
+      // 如果無法解析，使用原始時間的前16個字符
+      return timeStr.substring(0, 16);
+  } catch (error) {
+      return timeStr.substring(0, 10);
+  }
+}
+
+// 🆕 取得編號範圍（按編號前幾位分組）
+function getNumberRange(numberStr) {
+  if (!numberStr) return 'unknown';
+  
+  const num = parseInt(numberStr);
+  if (isNaN(num)) return 'unknown';
+  
+  // 按100為單位分組，例如 1-99, 100-199, 200-299
+  const rangeStart = Math.floor(num / 100) * 100;
+  return `${rangeStart}-${rangeStart + 99}`;
+}
+
+// 🆕 產生顯示標題
+function generateDisplayTitle(feeder, groupData, records) {
+  const timeGroup = groupData.timeGroup;
+  const numberRange = groupData.numberRange;
+  const recordCount = records.length;
+  
+  if (recordCount === 1) {
+      // 單一記錄，顯示完整資訊
+      const record = records[0];
+      return `${feeder} (#${record.編號})`;
+  } else {
+      // 多筆記錄，顯示群組資訊
+      const timeDisplay = timeGroup.replace(/_/g, ' ').replace('h', '時');
+      return `${feeder} (${timeDisplay})`;
+  }
+}
+
+// 🆕 取得群組描述
+function getGroupDescription(groupData, recordCount) {
+  if (recordCount <= 1) return '';
+  
+  const timeGroup = groupData.timeGroup;
+  const numberRange = groupData.numberRange;
+  
+  let description = '<div style="font-size: 9px; color: #999; margin-top: 3px;">';
+  
+  if (numberRange !== 'unknown') {
+      description += `編號範圍: ${numberRange} | `;
+  }
+  
+  description += `${recordCount} 個相關事故</div>`;
+  
+  return description;
+}
+
 
 // 🆕 判斷饋線狀態顏色
 function getFeederStatusColor(records) {
@@ -6755,20 +6857,31 @@ function getFeederStatusText(records) {
     
     return '🔴 故障中';
 }
-// 🔧 修改：選擇停電饋線 - 不自動載入饋線
-function selectOutageFeeder(feeder) {
-    console.log(`🔍 選擇停電饋線: ${feeder}`);
-    
-    // 找到該饋線的所有停電記錄
-    const feederRecords = outageData.filter(record => record.饋線 === feeder);
-    
-    if (feederRecords.length === 0) {
-        showToast(`找不到饋線 ${feeder} 的停電記錄`, 'error');
-        return;
-    }
-    
-    // 只顯示詳細資訊彈窗，不自動載入饋線
-    showFeederOutageDetails(feeder, feederRecords);
+// 🔧 修改：選擇停電饋線 - 支援群組鍵
+function selectOutageFeeder(feeder, groupKey = null) {
+  console.log(`🔍 選擇停電饋線: ${feeder}${groupKey ? ` (群組: ${groupKey})` : ''}`);
+  
+  let feederRecords;
+  
+  if (groupKey) {
+      // 使用群組鍵篩選特定群組的記錄
+      feederRecords = outageData.filter(record => {
+          if (record.饋線 !== feeder) return false;
+          const recordGroupKey = createFeederGroupKey(record, feeder);
+          return recordGroupKey === groupKey;
+      });
+  } else {
+      // 傳統方式：取得該饋線的所有記錄
+      feederRecords = outageData.filter(record => record.饋線 === feeder);
+  }
+
+  if (feederRecords.length === 0) {
+      showToast(`找不到饋線 ${feeder} 的停電記錄`, 'error');
+      return;
+  }
+
+  // 顯示詳細資訊彈窗
+  showFeederOutageDetails(feeder, feederRecords);
 }
 
 // 🆕 顯示饋線停電詳細資訊
@@ -6790,87 +6903,91 @@ function showFeederOutageDetails(feeder, records) {
 }
 
 // 🆕 桌面版彈窗顯示（保持原有功能）
-// 🔧 修改：桌面版彈窗顯示 - 加入無座標調閱功能
+// 🔧 修改：桌面版彈窗顯示 - 更新標題顯示
 function showFeederDetailsInPopup(feeder, records, statusColor, statusText) {
-    let detailHtml = `
-        <div style="max-width: 450px; max-height: 500px; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h3 style="color: ${statusColor}; margin: 0;">⚡ ${feeder}</h3>
-                <span style="background: ${statusColor}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;">
-                    ${statusText}
-                </span>
-            </div>
-            
-            <!-- 🆕 快速載入饋線按鈕 -->
-            <div style="margin-bottom: 15px;">
-                <button onclick="loadFeederDirectly('${feeder}')" 
-                        style="width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">
-                    🗺️ 直接載入 ${feeder} 饋線圖
-                </button>
-            </div>
-    `;
-    
-    records.forEach((record, index) => {
-        const hasCoordinates = record.故障區間圖號座標1 && record.故障區間圖號座標2;
-        const recordStatusColor = getRecordStatusColor(record);
-        
-        detailHtml += `
-            <div style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${recordStatusColor};">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <strong style="color: ${recordStatusColor};">事故 #${record.編號}</strong>
-                    <span style="font-size: 11px; color: #666;">${record.時間}</span>
-                </div>
-                
-                <div style="font-size: 12px; line-height: 1.4;">
-                    <p><strong>事故別:</strong> ${record.事故別}</p>
-                    <p><strong>故障區間:</strong> ${record.故障區間 || 'N/A'}</p>
-                    <p><strong>處理部門:</strong> ${record.處理部門}</p>
-                    <p><strong>派查狀態:</strong> ${record.派查狀態 || 'N/A'}</p>
-                    <p><strong>派查人員:</strong> ${record.派查人員 || 'N/A'}</p>
-                    ${record.事故原因 ? `<p><strong>事故原因:</strong> ${record.事故原因}</p>` : ''}
-                    ${record.主幹復電 ? `<p style="color: #28a745;"><strong>✅ 主幹復電:</strong> ${record.主幹復電}</p>` : ''}
-                    ${record.查報完成 ? `<p style="color: #6c757d;"><strong>📋 查報完成:</strong> ${record.查報完成}</p>` : ''}
-                </div>
-                
-                <!-- 🔧 修改：操作按鈕 - 有座標和無座標都能操作 -->
-				<div style="margin: 10px -8px 5px -8px;">
-					${hasCoordinates ? `
-						<button onclick="showFaultLocation('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
-								style="padding: 18px 24px; background: linear-gradient(135deg, #ff6b35, #f7931e); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: bold; width: calc(100% + 16px); transition: all 0.3s ease; box-shadow: 0 6px 12px rgba(255, 107, 53, 0.4); text-shadow: 0 2px 4px rgba(0,0,0,0.3); display: block; position: relative; letter-spacing: 0.5px;"
-								onmouseover="this.style.transform='translateY(-4px) scale(1.03)'; this.style.boxShadow='0 8px 20px rgba(255, 107, 53, 0.5)';"
-								onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 6px 12px rgba(255, 107, 53, 0.4)';">
-							🎯 查看故障區間並載入饋線
-						</button>
-					` : `
-						<button onclick="loadFeederWithRecord('${feeder}', '${record.故障區間}', ${index})" 
-								style="padding: 15px 20px; background: linear-gradient(135deg, #17a2b8, #138496); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; width: calc(100% + 16px); transition: all 0.3s ease; box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3); text-shadow: 0 1px 2px rgba(0,0,0,0.2);"
-								onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 12px rgba(23, 162, 184, 0.4)';"
-								onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 8px rgba(23, 162, 184, 0.3)';">
-							🗺️ 載入饋線並查看故障區間
-						</button>
-					`}
-				</div>
-            </div>
-        `;
-    });
-    
-    detailHtml += `
-            <div style="margin-top: 15px; text-align: center;">
-                <button onclick="map.closePopup()" 
-                        style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    關閉
-                </button>
-            </div>
-        </div>
-    `;
-    
-    const popup = L.popup({
-        maxWidth: 500,
-        closeButton: true
-    })
-    .setLatLng(map.getCenter())
-    .setContent(detailHtml)
-    .openOn(map);
+  // 🆕 如果是群組記錄，顯示更詳細的標題
+  const isGrouped = records.length > 1;
+  const displayTitle = isGrouped ? 
+      `${feeder} (${records.length}個相關事故)` : 
+      `${feeder} (#${records[0].編號})`;
+  
+  let detailHtml = `
+      <div style="min-width: 400px; max-width: 500px; font-family: Arial, sans-serif;">
+          <div style="background: linear-gradient(135deg, ${statusColor}, ${adjustColor(statusColor, -20)}); color: white; padding: 15px; margin: -10px -10px 15px -10px; border-radius: 8px 8px 0 0;">
+              <h3 style="margin: 0; font-size: 18px;">⚡ ${displayTitle}</h3>
+              <div style="font-size: 12px; opacity: 0.9; margin-top: 5px;">${statusText}</div>
+          </div>
+
+          <!-- 🆕 快速載入饋線按鈕 -->
+          <div style="margin-bottom: 15px;">
+              <button onclick="loadFeederDirectly('${feeder}')" 
+                      style="width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                  🗺️ 直接載入 ${feeder} 饋線圖
+              </button>
+          </div>
+  `;
+
+  records.forEach((record, index) => {
+      const hasCoordinates = record.故障區間圖號座標1 && record.故障區間圖號座標2;
+      const recordStatusColor = getRecordStatusColor(record);
+      
+      detailHtml += `
+          <div style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid ${recordStatusColor};">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <strong style="color: ${recordStatusColor};">事故 #${record.編號}</strong>
+                  <span style="font-size: 11px; color: #666;">${record.時間}</span>
+              </div>
+              
+              <div style="font-size: 12px; line-height: 1.4;">
+                  <p><strong>事故別:</strong> ${record.事故別}</p>
+                  <p><strong>故障區間:</strong> ${record.故障區間 || 'N/A'}</p>
+                  <p><strong>處理部門:</strong> ${record.處理部門}</p>
+                  <p><strong>派查狀態:</strong> ${record.派查狀態 || 'N/A'}</p>
+                  <p><strong>派查人員:</strong> ${record.派查人員 || 'N/A'}</p>
+                  ${record.事故原因 ? `<p><strong>事故原因:</strong> ${record.事故原因}</p>` : ''}
+                  ${record.主幹復電 ? `<p style="color: #28a745;"><strong>✅ 主幹復電:</strong> ${record.主幹復電}</p>` : ''}
+                  ${record.查報完成 ? `<p style="color: #6c757d;"><strong>📋 查報完成:</strong> ${record.查報完成}</p>` : ''}
+              </div>
+              
+              <!-- 操作按鈕 -->
+              <div style="margin: 10px -8px 5px -8px;">
+                  ${hasCoordinates ? `
+                      <button onclick="showFaultLocation('${record.故障區間圖號座標1}', '${record.故障區間圖號座標2}', '${feeder}', '${record.故障區間}')" 
+                              style="padding: 18px 24px; background: linear-gradient(135deg, #ff6b35, #f7931e); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: bold; width: calc(100% + 16px); transition: all 0.3s ease; box-shadow: 0 6px 12px rgba(255, 107, 53, 0.4); text-shadow: 0 2px 4px rgba(0,0,0,0.3); display: block; position: relative; letter-spacing: 0.5px;"
+                              onmouseover="this.style.transform='translateY(-4px) scale(1.03)'; this.style.boxShadow='0 8px 20px rgba(255, 107, 53, 0.5)';"
+                              onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 6px 12px rgba(255, 107, 53, 0.4)';">
+                          🎯 查看故障區間並載入饋線
+                      </button>
+                  ` : `
+                      <button onclick="loadFeederWithRecord('${feeder}', '${record.故障區間}', ${index})" 
+                              style="padding: 15px 20px; background: linear-gradient(135deg, #17a2b8, #138496); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; width: calc(100% + 16px); transition: all 0.3s ease; box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3); text-shadow: 0 1px 2px rgba(0,0,0,0.2);"
+                              onmouseover="this.style.transform='translateY(-2px) scale(1.02)'; this.style.boxShadow='0 6px 12px rgba(23, 162, 184, 0.4)';"
+                              onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow='0 4px 8px rgba(23, 162, 184, 0.3)';">
+                          🗺️ 載入饋線並查看故障區間
+                      </button>
+                  `}
+              </div>
+          </div>
+      `;
+  });
+
+  detailHtml += `
+          <div style="margin-top: 15px; text-align: center;">
+              <button onclick="map.closePopup()" 
+                      style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                  關閉
+              </button>
+          </div>
+      </div>
+  `;
+
+  const popup = L.popup({
+      maxWidth: 500,
+      closeButton: true
+  })
+  .setLatLng(map.getCenter())
+  .setContent(detailHtml)
+  .openOn(map);
 }
 
 // 🔧 修改：在側邊欄顯示饋線詳情（手機版）- 加入無座標調閱功能
