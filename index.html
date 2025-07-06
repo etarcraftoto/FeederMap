@@ -1,4 +1,4 @@
-	<!DOCTYPE html>
+<!DOCTYPE html>
 	<html lang="zh-TW">
 	<head>
 		<meta charset="UTF-8">
@@ -6641,110 +6641,138 @@ function updateOutageStatus(message) {
     }
 }
 
-// 🔧 修改：建立饋線跳脫清單 - 處理重複饋線代號，錯開顯示
+// 🔧 修正版：建立饋線跳脫清單 - 確保每個事故都分開顯示
 function createOutageFeederList() {
-  const listContainer = document.getElementById('outageFeederList');
-  if (!listContainer || !outageData) return;
+const listContainer = document.getElementById('outageFeederList');
+if (!listContainer || !outageData) return;
 
-  // 🔧 修改：統計有饋線資料的記錄數量
-  const validRecords = outageData.filter(record => 
-      record.饋線 && record.饋線.toString().trim() !== ''
-  );
+// 🔧 修正：統計有饋線資料的記錄數量
+const validRecords = outageData.filter(record => 
+    record.饋線 && record.饋線.toString().trim() !== ''
+);
 
-  // 更新狀態顯示 - 使用有效記錄數量
-  updateOutageStatus(`✅ 已載入 ${validRecords.length} 筆有饋線資料的停電記錄 (共 ${outageData.length} 筆原始資料)`);
+// 更新狀態顯示
+updateOutageStatus(`✅ 已載入 ${validRecords.length} 筆有饋線資料的停電記錄 (共 ${outageData.length} 筆原始資料)`);
 
-  // 🔧 重要修改：處理重複饋線代號，按時間和編號分組
-  const feederMap = new Map();
+// 🔧 重要修正：使用更精確的分組邏輯，確保每個事故都能分開
+const feederMap = new Map();
 
-  validRecords.forEach(record => {
-      const feeder = record.饋線;
-      if (feeder && feeder.trim() !== '') {
-          // 🆕 建立唯一的群組鍵：饋線代號 + 時間段 + 編號範圍
-          const groupKey = createFeederGroupKey(record, feeder);
-          
-          if (!feederMap.has(groupKey)) {
-              feederMap.set(groupKey, {
-                  feeder: feeder,
-                  records: [],
-                  timeGroup: getTimeGroup(record.時間),
-                  numberRange: getNumberRange(record.編號)
-              });
-          }
-          feederMap.get(groupKey).records.push(record);
-      }
-  });
+validRecords.forEach(record => {
+    const feeder = record.饋線;
+    if (feeder && feeder.trim() !== '') {
+        // 🔧 修正：使用更精確的群組鍵，包含編號確保唯一性
+        const groupKey = createFeederGroupKey(record, feeder);
+        
+        if (!feederMap.has(groupKey)) {
+            feederMap.set(groupKey, {
+                feeder: feeder,
+                records: [],
+                timeGroup: getDetailedTimeGroup(record.時間),
+                numberRange: record.編號 || 'unknown',
+                primaryRecord: record // 🆕 加入主要記錄參考
+            });
+        }
+        feederMap.get(groupKey).records.push(record);
+    }
+});
 
-  // 建立清單 HTML
-  let listHtml = '';
+// 建立清單 HTML
+let listHtml = '';
 
-  if (feederMap.size === 0) {
-      listHtml = '<div style="text-align: center; color: #28a745; padding: 20px;">✅ 目前無饋線跳脫</div>';
-  } else {
-      // 🔧 修改：按時間排序，最新的在前面
-      const sortedGroups = Array.from(feederMap.entries()).sort((a, b) => {
-          const timeA = new Date(a[1].records[0].時間).getTime();
-          const timeB = new Date(b[1].records[0].時間).getTime();
-          return timeB - timeA; // 降序排列，最新在前
-      });
+if (feederMap.size === 0) {
+    listHtml = '<div style="text-align: center; color: #28a745; padding: 20px;">✅ 目前無饋線跳脫</div>';
+} else {
+    // 🔧 修正：按時間排序，最新的在前面
+    const sortedGroups = Array.from(feederMap.entries()).sort((a, b) => {
+        const timeA = new Date(a[1].primaryRecord.時間).getTime();
+        const timeB = new Date(b[1].primaryRecord.時間).getTime();
+        return timeB - timeA; // 降序排列，最新在前
+    });
 
-      sortedGroups.forEach(([groupKey, groupData]) => {
-          const records = groupData.records;
-          const feeder = groupData.feeder;
-          const recordCount = records.length;
-          const latestRecord = records[0]; // 假設第一筆是最新的
-          
-          // 判斷饋線狀態顏色
-          const statusColor = getFeederStatusColor(records);
-          const statusText = getFeederStatusText(records);
-          
-          // 🆕 產生顯示標題，區分重複的饋線
-          const displayTitle = generateDisplayTitle(feeder, groupData, records);
-          
-          listHtml += `
-              <div class="outage-feeder-item" style="margin-bottom: 10px; padding: 12px; background: white; border-radius: 6px; border-left: 4px solid ${statusColor}; cursor: pointer;"
-                   onclick="selectOutageFeeder('${feeder}', '${groupKey}')">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <div>
-                          <strong style="color: ${statusColor}; font-size: 14px;">⚡ ${displayTitle}</strong>
-                          <div style="font-size: 11px; color: #666; margin-top: 2px;">
-                              ${latestRecord.時間} | ${latestRecord.處理部門}
-                          </div>
-                          <div style="font-size: 10px; color: ${statusColor}; margin-top: 2px; font-weight: bold;">
-                              ${statusText}
-                          </div>
-                          ${getGroupDescription(groupData, recordCount)}
-                      </div>
-                      <div style="text-align: right;">
-                          <span style="background: ${statusColor}; color: white; padding: 2px 6px; border-radius: 12px; font-size: 10px;">
-                              ${recordCount} 筆
-                          </span>
-                      </div>
-                  </div>
-                  <div style="font-size: 11px; color: #666; margin-top: 4px;">
-                      ${latestRecord.故障區間 || '查詢中...'}
-                  </div>
-              </div>
-          `;
-      });
-  }
-
-  listContainer.innerHTML = listHtml;
+    sortedGroups.forEach(([groupKey, groupData]) => {
+        const records = groupData.records;
+        const feeder = groupData.feeder;
+        const recordCount = records.length;
+        const latestRecord = records[0]; // 假設第一筆是最新的
+        
+        // 判斷饋線狀態顏色
+        const statusColor = getFeederStatusColor(records);
+        const statusText = getFeederStatusText(records);
+        
+        // 🔧 修正：產生更精確的顯示標題
+        const displayTitle = generateDisplayTitle(feeder, groupData, records);
+        
+        listHtml += `
+            <div class="outage-feeder-item" style="margin-bottom: 10px; padding: 12px; background: white; border-radius: 6px; border-left: 4px solid ${statusColor}; cursor: pointer;"
+                 onclick="selectOutageFeeder('${feeder}', '${groupKey}')">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: ${statusColor}; font-size: 14px;">⚡ ${displayTitle}</strong>
+                        <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                            ${latestRecord.時間} | ${latestRecord.處理部門}
+                        </div>
+                        <div style="font-size: 10px; color: ${statusColor}; margin-top: 2px; font-weight: bold;">
+                            ${statusText}
+                        </div>
+                        ${getGroupDescription(groupData, recordCount)}
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="background: ${statusColor}; color: white; padding: 2px 6px; border-radius: 12px; font-size: 10px;">
+                            ${recordCount === 1 ? '單筆' : recordCount + ' 筆'}
+                        </span>
+                    </div>
+                </div>
+                <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                    ${latestRecord.故障區間 || '查詢中...'}
+                </div>
+            </div>
+        `;
+    });
 }
-// 🆕 建立饋線群組鍵
+
+listContainer.innerHTML = listHtml;
+
+console.log(`✅ 饋線跳脫清單已更新，共 ${feederMap.size} 個獨立事故群組`);
+}
+// 🔧 修正版：建立饋線群組鍵 - 使用更精確的時間分組
 function createFeederGroupKey(record, feeder) {
-  const time = record.時間 || '';
-  const number = record.編號 || '';
-  const department = record.處理部門 || '';
-  
-  // 提取時間的小時部分
-  const timeGroup = getTimeGroup(time);
-  
-  // 提取編號範圍
-  const numberRange = getNumberRange(number);
-  
-  // 組合成唯一鍵
-  return `${feeder}_${timeGroup}_${numberRange}_${department}`;
+const time = record.時間 || '';
+const number = record.編號 || '';
+const department = record.處理部門 || '';
+
+// 🔧 重要修正：使用完整時間戳記而非小時分組
+const timeGroup = getDetailedTimeGroup(time);
+
+// 提取編號範圍（保持原有邏輯）
+const numberRange = getNumberRange(number);
+
+// 🔧 修正：組合成更精確的唯一鍵，加入編號確保唯一性
+return `${feeder}_${timeGroup}_${number}_${department}`;
+}
+
+// 🔧 新增：更精確的時間群組函數
+function getDetailedTimeGroup(timeStr) {
+if (!timeStr) return 'unknown';
+
+try {
+    // 🔧 重要：使用完整的時間字串，包含分鐘和秒數
+    // 例如 "2024/01/15 14:30:25" -> "2024/01/15_14:30:25"
+    const match = timeStr.match(/(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2}:\d{2})/);
+    if (match) {
+        return `${match[1]}_${match[2]}`; // 例如 "2024/01/15_14:30:25"
+    }
+    
+    // 🔧 備用方案：如果只有到分鐘的格式
+    const minuteMatch = timeStr.match(/(\d{4}\/\d{2}\/\d{2})\s+(\d{2}:\d{2})/);
+    if (minuteMatch) {
+        return `${minuteMatch[1]}_${minuteMatch[2]}:00`; // 補上秒數
+    }
+    
+    // 如果無法解析，使用原始時間
+    return timeStr.replace(/[^\w\d]/g, '_');
+} catch (error) {
+    return timeStr.substring(0, 20).replace(/[^\w\d]/g, '_');
+}
 }
 
 // 🆕 取得時間群組（按小時分組）
@@ -6777,39 +6805,47 @@ function getNumberRange(numberStr) {
   return `${rangeStart}-${rangeStart + 99}`;
 }
 
-// 🆕 產生顯示標題
+// 🔧 修正版：產生顯示標題 - 針對分離後的記錄
 function generateDisplayTitle(feeder, groupData, records) {
-  const timeGroup = groupData.timeGroup;
-  const numberRange = groupData.numberRange;
-  const recordCount = records.length;
-  
-  if (recordCount === 1) {
-      // 單一記錄，顯示完整資訊
-      const record = records[0];
-      return `${feeder} (#${record.編號})`;
-  } else {
-      // 多筆記錄，顯示群組資訊
-      const timeDisplay = timeGroup.replace(/_/g, ' ').replace('h', '時');
-      return `${feeder} (${timeDisplay})`;
-  }
+const recordCount = records.length;
+
+if (recordCount === 1) {
+    // 單一記錄，顯示完整資訊包含時間
+    const record = records[0];
+    const shortTime = record.時間 ? record.時間.substring(11, 16) : ''; // 只取 HH:MM
+    return `${feeder} (#${record.編號}${shortTime ? ` ${shortTime}` : ''})`;
+} else {
+    // 多筆記錄（現在應該很少出現）
+    const firstRecord = records[0];
+    const shortTime = firstRecord.時間 ? firstRecord.時間.substring(11, 16) : '';
+    return `${feeder} (${recordCount}筆${shortTime ? ` ${shortTime}` : ''})`;
+}
 }
 
-// 🆕 取得群組描述
+// 🔧 修正版：取得群組描述 - 針對分離後的記錄
 function getGroupDescription(groupData, recordCount) {
-  if (recordCount <= 1) return '';
-  
-  const timeGroup = groupData.timeGroup;
-  const numberRange = groupData.numberRange;
-  
-  let description = '<div style="font-size: 9px; color: #999; margin-top: 3px;">';
-  
-  if (numberRange !== 'unknown') {
-      description += `編號範圍: ${numberRange} | `;
-  }
-  
-  description += `${recordCount} 個相關事故</div>`;
-  
-  return description;
+if (recordCount <= 1) return '';
+
+// 現在大部分應該是單一記錄，如果還有群組則顯示詳細時間
+const records = groupData.records || [];
+if (records.length > 1) {
+    const timeRange = getTimeRange(records);
+    return `<div style="font-size: 9px; color: #999; margin-top: 3px;">時間範圍: ${timeRange}</div>`;
+}
+
+return '';
+}
+// 🆕 新增：取得時間範圍
+function getTimeRange(records) {
+if (!records || records.length <= 1) return '';
+
+const times = records.map(r => r.時間).filter(t => t).sort();
+if (times.length < 2) return '';
+
+const startTime = times[0].substring(11, 16); // HH:MM
+const endTime = times[times.length - 1].substring(11, 16); // HH:MM
+
+return `${startTime} - ${endTime}`;
 }
 
 
@@ -9961,4 +9997,3 @@ async function showNearbyDevicesOnly() {
 		</div>
 	  </body>
 	  </html>
-	  
