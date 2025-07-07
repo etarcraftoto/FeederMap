@@ -2525,7 +2525,7 @@ function disableContinuousLocation() {
     console.log('⏹️ 已停止跟隨裝置位置');
 }
 
-// 🔧 修正：座標查詢函數 - 加入手機版優化
+// 新增：圖號座標轉換功能
 function searchByCoordinate() {
     const input = document.getElementById('coordinateInput');
     const coordinate = input.value.trim().toUpperCase();
@@ -2534,7 +2534,7 @@ function searchByCoordinate() {
         showToast('請輸入圖號座標！', 'error');
         return;
     }
-
+    
     try {
         const result = convertPowerCoordinate(coordinate);
         const [lng, lat] = result.split(',').map(Number);
@@ -2551,23 +2551,19 @@ function searchByCoordinate() {
             })
         }).addTo(map);
         
-        // 🔧 手機版彈窗內容優化
-        const isMobile = window.innerWidth <= 768;
         const popupContent = `
-            <div style="text-align: center; ${isMobile ? 'min-width: 250px;' : ''}">
-                <h4 style="margin: 0 0 10px 0;">📍 圖號座標定位</h4>
-                <p style="margin: 5px 0;"><strong>座標:</strong> ${coordinate}</p>
-                <p style="margin: 5px 0; font-size: ${isMobile ? '12px' : '13px'};"><strong>經緯度:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
-                <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                    <button onclick="openStreetView(${lat}, ${lng})" 
-                            style="padding: ${isMobile ? '10px 8px' : '8px 10px'}; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: ${isMobile ? '12px' : '11px'};">
-                        🗺️ 街景圖
-                    </button>
-                    <button onclick="copyCoordinates(${lat}, ${lng})" 
-                            style="padding: ${isMobile ? '10px 8px' : '8px 10px'}; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: ${isMobile ? '12px' : '11px'};">
-                        📋 複製座標
-                    </button>
-                </div>
+            <div style="text-align: center;">
+                <h4>📍 圖號座標定位</h4>
+                <p><strong>座標:</strong> ${coordinate}</p>
+                <p><strong>經緯度:</strong> ${lat.toFixed(3)}, ${lng.toFixed(3)}</p>
+                <button onclick="openStreetView(${lat}, ${lng})" 
+                        style="margin: 5px; padding: 5px 10px; background: #4285f4; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                    🗺️ 街景圖
+                </button>
+                <button onclick="copyCoordinates(${lat}, ${lng})" 
+                        style="margin: 5px; padding: 5px 10px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                    📋 複製座標
+                </button>
             </div>
         `;
         
@@ -2577,16 +2573,6 @@ function searchByCoordinate() {
         map.flyTo([lat, lng], 18, {
             duration: 1.0
         });
-        
-        // 🔧 手機版：自動切換到地圖檢視
-        if (isMobile) {
-            setTimeout(() => {
-                const mapTab = document.querySelector('[data-tab="map"]');
-                if (mapTab) {
-                    mapTab.click();
-                }
-            }, 500);
-        }
         
         showToast(`✅ 座標定位成功: ${coordinate}`, 'success');
         
@@ -6732,38 +6718,28 @@ window.addEventListener('resize', function() {
     }, 100);
 });
 
-// 🔧 修正：手機版優化函數 - 加入座標查詢區域調整
+// 🔧 修正版：手機版控制面板 - 隱藏檔案載入功能
 function initMobileOptimizations() {
     if (window.innerWidth <= 768) {
-        // 現有的隱藏邏輯...
-        
-        // 🔧 新增：調整座標查詢區域
-        const coordinateSection = document.querySelector('.coordinate-input-section');
-        if (coordinateSection) {
-            // 確保座標查詢區域在手機版有足夠空間
-            coordinateSection.style.marginBottom = '30px';
-            coordinateSection.style.paddingBottom = '20px';
-            
-            // 🔧 調整按鈕樣式
-            const coordinateBtn = coordinateSection.querySelector('.coordinate-btn');
-            if (coordinateBtn) {
-                coordinateBtn.style.minHeight = '50px';
-                coordinateBtn.style.fontSize = '16px';
-                coordinateBtn.style.marginBottom = '20px';
+        // 🔧 隱藏檔案載入相關控制項
+        const fileControls = document.querySelectorAll('#fileInput, label[for="fileInput"], .file-upload-section');
+        fileControls.forEach(control => {
+            if (control) {
+                control.style.display = 'none';
             }
-        }
+        });
         
-        // 🔧 新增：確保側邊欄滾動順暢
-        const sidebar = document.querySelector('.sidebar');
-        if (sidebar) {
-            sidebar.style.overflowY = 'auto';
-            sidebar.style.WebkitOverflowScrolling = 'touch'; // iOS 滑順滾動
-        }
+        // 🔧 隱藏包含"載入配電系統檔案"的整個區塊
+        const uploadSections = document.querySelectorAll('.upload-section, .file-section');
+        uploadSections.forEach(section => {
+            if (section && section.textContent.includes('載入配電系統檔案')) {
+                section.style.display = 'none';
+            }
+        });
         
-        console.log('📱 手機版座標查詢優化完成');
+        console.log('📱 手機版優化：已隱藏檔案載入功能');
     }
 }
-
 
 // 🆕 載入停電資料
 // 🔧 修改：載入停電資料函數 - 更新狀態顯示邏輯
