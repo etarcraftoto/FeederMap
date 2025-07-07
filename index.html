@@ -1519,13 +1519,7 @@ body {
 				<div id="disasterStatus" style="margin-bottom: 15px; padding: 10px; background: #e8f4fd; border: 1px solid #64b5f6; border-radius: 6px; font-size: 13px; color: #1565c0;">
 					正在載入災情資料...
 				</div>
-				
-				<!-- 災情清單 -->
-				<div id="disasterReportList" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px;">
-					<!-- 動態載入的災情清單 -->
-				</div>
-				
-				<!-- 篩選控制 -->
+								<!-- 篩選控制 -->
 				<div style="margin-bottom: 10px;">
 					<select id="disasterFilter" style="width: 100%; padding: 8px; border: 2px solid #42a5f5; border-radius: 4px; background: white; color: #1565c0; font-weight: 500;" onchange="filterDisasterReports()">
 						<option value="all">所有災情</option>
@@ -1534,7 +1528,12 @@ body {
 						<option value="已修復">已修復</option>
 					</select>
 				</div>
+				<!-- 災情清單 -->
+				<div id="disasterReportList" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px;">
+					<!-- 動態載入的災情清單 -->
+				</div>
 				
+
 				<!-- 操作按鈕 -->
 				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
 					<button onclick="refreshDisasterData()" 
