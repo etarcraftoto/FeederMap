@@ -1521,7 +1521,7 @@ body {
 				<div style="margin-bottom: 10px;">
 					<select id="disasterFilter" style="width: 100%; padding: 8px; border: 2px solid #42a5f5; border-radius: 4px; background: white; color: #1565c0; font-weight: 500;" onchange="filterDisasterReports()">
 						<option value="all">所有災情</option>
-						<option value="未修復">未修復</option>
+						<option value="未派修">未派修</option>
 						<option value="已派修">已派修</option>
 						<option value="已修復">已修復</option>
 					</select>
@@ -7671,7 +7671,7 @@ function createDisasterReportList() {
         listHtml = '<div style="text-align: center; color: #28a745; padding: 20px;">✅ 目前無災情報告</div>';
     } else {
         disasterData.forEach((report, index) => {
-            const repairStatus = report['修復狀態'] || '未修復';
+            const repairStatus = report['修復狀態'] || '未派修';
             const statusColor = getRepairStatusColor(repairStatus);
             const severityLevel = report['嚴重等級'] || '未定義';
             
@@ -7748,7 +7748,7 @@ function showDisasterReportDetails(report) {
 // 建立災情標記
 // 🔧 修正版：建立災情標記 - 恢復正常彈出視窗功能
 function createDisasterMarker(report) {
-    const repairStatus = report['修復狀態'] || '未修復';
+    const repairStatus = report['修復狀態'] || '未派修';
     const severityLevel = report['嚴重等級'] || '未定義';
     
     // 根據狀態設置圖標顏色
@@ -7805,7 +7805,7 @@ function createDisasterMarker(report) {
 
 // 🔧 修正版：建立災情彈出窗口內容 - 新增複製標籤資訊功能
 function createDisasterPopupContent(report) {
-    const repairStatus = report['修復狀態'] || '未修復';
+    const repairStatus = report['修復狀態'] || '未派修';
     const severityLevel = report['嚴重等級'] || '未定義';
     
     let popupContent = `<div class="popup-content">`;
@@ -7987,7 +7987,7 @@ function copyDisasterMarkerInfo(reportId, lat, lng) {
         const shareUrl = `${baseUrl}#disaster/${reportId}/${lat.toFixed(6)}/${lng.toFixed(6)}`;
         
         // 建立標籤資訊文字
-        const repairStatus = report['修復狀態'] || '未修復';
+        const repairStatus = report['修復狀態'] || '未派修';
         const severityLevel = report['嚴重等級'] || '未定義';
         const incidentText = Array.isArray(report.incidents) && report.incidents.length > 0 
             ? report.incidents.map(incident => `${incident.type || '未知'} (${incident.quantity || 0} ${incident.unit || ''})`).join(', ')
@@ -8488,12 +8488,12 @@ function openRepairModal(reportId) {
     const report = disasterData.find(r => r.id === reportId);
     if (!report) return;
     
-    const newStatus = prompt(`目前狀態：${report['修復狀態'] || '未修復'}\n\n請選擇新狀態：\n1. 未修復\n2. 已派修\n3. 已修復\n\n請輸入數字 1-3:`);
+    const newStatus = prompt(`目前狀態：${report['修復狀態'] || '未派修'}\n\n請選擇新狀態：\n1. 未派修\n2. 已派修\n3. 已修復\n\n請輸入數字 1-3:`);
     
     if (newStatus) {
         let status;
         switch(newStatus) {
-            case '1': status = '未修復'; break;
+            case '1': status = '未派修'; break;
             case '2': status = '已派修'; break;
             case '3': status = '已修復'; break;
             default: return;
@@ -8514,32 +8514,93 @@ function openRepairModal(reportId) {
     }
 }
 
-// 篩選災情報告
+// 🔧 修正版：篩選災情報告 - 同步更新清單和地圖標籤
 function filterDisasterReports() {
     const filter = document.getElementById('disasterFilter').value;
+    console.log(`🔍 篩選災情狀態: ${filter}`);
+    
+    // 清除現有的災情標記
+    clearDisasterMarkers();
     
     let filteredData = disasterData;
     if (filter !== 'all') {
-        filteredData = disasterData.filter(report => (report['修復狀態'] || '未修復') === filter);
+        filteredData = disasterData.filter(report => {
+            const repairStatus = report['修復狀態'] || '未派修';
+            return repairStatus === filter;
+        });
     }
     
-    // 暫時替換資料進行顯示
+    console.log(`✅ 篩選結果: ${filteredData.length} 筆資料`);
+    
+    // 🔧 重要：暫時替換全域資料進行顯示
     const originalData = disasterData;
     disasterData = filteredData;
+    
+    // 重新建立清單
     createDisasterReportList();
+    
+    // 🆕 如果災情地圖正在顯示，重新顯示篩選後的標記
+    if (disasterMapVisible && filteredData.length > 0) {
+        displayFilteredDisasterMap(filteredData);
+    }
+    
+    // 🔧 重要：恢復原始資料
     disasterData = originalData;
+    
+    // 更新狀態顯示
+    const filterText = filter === 'all' ? '所有災情' : filter;
+    showToast(`🔍 已篩選顯示：${filterText} (${filteredData.length} 筆)`, 'info');
+    
+    // 更新狀態文字
+    updateDisasterStatus(`✅ 顯示 ${filteredData.length} 筆 ${filterText} 資料`);
 }
-
-// 🔧 修正版：重新整理災情資料 - 保持地圖狀態
+// 🆕 顯示篩選後的災情地圖
+function displayFilteredDisasterMap(filteredData) {
+    console.log('🗺️ 顯示篩選後的災情地圖...');
+    
+    // 清除現有標記
+    clearDisasterMarkers();
+    
+    let markerCount = 0;
+    const bounds = L.latLngBounds();
+    
+    filteredData.forEach(report => {
+        if (report.location && report.location.latitude && report.location.longitude) {
+            const marker = createDisasterMarker(report);
+            disasterMarkers.push(marker);
+            bounds.extend([report.location.latitude, report.location.longitude]);
+            markerCount++;
+        }
+    });
+    
+    if (markerCount > 0) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+        console.log(`✅ 已顯示 ${markerCount} 個篩選後的災情標記`);
+    } else {
+        console.log('⚠️ 篩選後無可顯示的災情標記');
+        disasterMapVisible = false;
+        updateDisasterMapButton();
+    }
+}
+// 🔧 修正版：重新整理災情資料 - 保持篩選狀態
 async function refreshDisasterData() {
     updateDisasterStatus('正在重新整理...');
     
-    // 🔧 記住當前地圖顯示狀態
+    // 🔧 記住當前篩選狀態
+    const currentFilter = document.getElementById('disasterFilter')?.value || 'all';
     const wasVisible = disasterMapVisible;
     
     const success = await loadDisasterData();
     if (success) {
         showToast('✅ 災情資料已更新', 'success');
+        
+        // 🆕 重新應用篩選
+        if (currentFilter !== 'all') {
+            setTimeout(() => {
+                document.getElementById('disasterFilter').value = currentFilter;
+                filterDisasterReports();
+            }, 200);
+        }
         
         // 🔧 如果之前地圖是顯示的，重新顯示
         if (wasVisible) {
@@ -8568,9 +8629,21 @@ function showDisasterMap() {
         displayDisasterMap();
     }
 }
-// 🆕 顯示災情地圖
+// 🔧 修正版：顯示災情地圖 - 考慮當前篩選狀態
 function displayDisasterMap() {
     console.log('🗺️ 顯示災情地圖...');
+    
+    // 🆕 檢查當前篩選狀態
+    const filter = document.getElementById('disasterFilter')?.value || 'all';
+    let dataToShow = disasterData;
+    
+    if (filter !== 'all') {
+        dataToShow = disasterData.filter(report => {
+            const repairStatus = report['修復狀態'] || '未派修';
+            return repairStatus === filter;
+        });
+        console.log(`🔍 應用篩選 "${filter}"，顯示 ${dataToShow.length} 筆資料`);
+    }
     
     // 清除現有標記（防止重複）
     clearDisasterMarkers();
@@ -8578,7 +8651,7 @@ function displayDisasterMap() {
     let markerCount = 0;
     const bounds = L.latLngBounds();
     
-    disasterData.forEach(report => {
+    dataToShow.forEach(report => {
         if (report.location && report.location.latitude && report.location.longitude) {
             const marker = createDisasterMarker(report);
             disasterMarkers.push(marker);
@@ -8591,12 +8664,14 @@ function displayDisasterMap() {
         map.fitBounds(bounds, { padding: [20, 20] });
         disasterMapVisible = true;
         updateDisasterMapButton();
-        showToast(`🗺️ 已顯示 ${markerCount} 個災情位置`, 'success');
+        
+        const filterText = filter === 'all' ? '' : ` (${filter})`;
+        showToast(`🗺️ 已顯示 ${markerCount} 個災情位置${filterText}`, 'success');
     } else {
-        showToast('❌ 無有效位置資料可顯示', 'error');
+        const filterText = filter === 'all' ? '' : ` "${filter}"`;
+        showToast(`❌ 無${filterText}災情資料可顯示`, 'error');
     }
 }
-
 // 🆕 隱藏災情地圖
 function hideDisasterMap() {
     console.log('🗺️ 隱藏災情地圖...');
@@ -9088,9 +9163,9 @@ function createDisasterMapToolbar() {
                 style="padding: 8px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
             🗺️ 災情地圖
         </button>
-        <button onclick="filterDisasterByStatus('未修復')" 
+        <button onclick="filterDisasterByStatus('未派修')" 
                 style="padding: 8px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
-            🔴 未修復
+            🔴 未派修
         </button>
         <button onclick="filterDisasterByStatus('已派修')" 
                 style="padding: 8px 12px; background: #ffc107; color: #212529; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
@@ -9140,7 +9215,7 @@ function filterDisasterByStatus(status) {
     
     // 篩選資料
     const filteredData = disasterData.filter(report => {
-        const repairStatus = report['修復狀態'] || '未修復';
+        const repairStatus = report['修復狀態'] || '未派修';
         return repairStatus === status;
     });
     
