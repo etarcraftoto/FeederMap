@@ -1488,7 +1488,15 @@ body {
 				<div id="outageStatus" style="margin-bottom: 15px; padding: 10px; background: #e8f5e8; border-radius: 6px; font-size: 13px;">
 					正在載入停電資料...
 				</div>
-				
+				<!-- 🆕 新增：主幹復電狀態篩選 -->
+				<div style="margin-bottom: 15px;">
+					<select id="outageFilter" style="width: 100%; padding: 8px; border: 2px solid #ffc107; border-radius: 4px; background: white; color: #856404; font-weight: 500;" onchange="filterOutageByStatus()">
+						<option value="all">全部事故饋線</option>
+						<option value="restored">主幹已復電</option>
+						<option value="not_restored">主幹未復電</option>
+					</select>
+				</div>
+
 				<!-- 饋線跳脫清單 -->
 				<div id="outageFeederList" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px;">
 					<!-- 動態載入的饋線清單 -->
@@ -6734,6 +6742,63 @@ listContainer.innerHTML = listHtml;
 
 console.log(`✅ 饋線跳脫清單已更新，共 ${feederMap.size} 個獨立事故群組`);
 }
+
+
+// 🆕 按主幹復電狀態篩選停電饋線
+function filterOutageByStatus() {
+    const filter = document.getElementById('outageFilter').value;
+    console.log(`🔍 篩選停電狀態: ${filter}`);
+    
+    if (!outageData || outageData.length === 0) {
+        updateOutageStatus('❌ 無停電資料可篩選');
+        return;
+    }
+    
+    // 🔧 修正：統計有饋線資料的記錄數量
+    let validRecords = outageData.filter(record =>
+        record.饋線 && record.饋線.toString().trim() !== ''
+    );
+    
+    // 根據篩選條件過濾
+    let filteredRecords = validRecords;
+    if (filter === 'restored') {
+        // 主幹已復電：有主幹復電資料的記錄
+        filteredRecords = validRecords.filter(record => 
+            record.主幹復電 && record.主幹復電.toString().trim() !== ''
+        );
+    } else if (filter === 'not_restored') {
+        // 主幹未復電：沒有主幹復電資料的記錄
+        filteredRecords = validRecords.filter(record => 
+            !record.主幹復電 || record.主幹復電.toString().trim() === ''
+        );
+    }
+    
+    console.log(`✅ 篩選結果: ${filteredRecords.length} 筆資料`);
+    
+    // 🔧 重要：暫時替換全域資料進行顯示
+    const originalData = outageData;
+    outageData = filteredRecords;
+    
+    // 重新建立清單
+    createOutageFeederList();
+    
+    // 🔧 重要：恢復原始資料
+    outageData = originalData;
+    
+    // 更新狀態顯示
+    const filterText = getFilterDisplayText(filter);
+    updateOutageStatus(`✅ 顯示 ${filteredRecords.length} 筆 ${filterText} 資料`);
+    showToast(`🔍 已篩選顯示：${filterText} (${filteredRecords.length} 筆)`, 'info');
+}
+
+// 🆕 取得篩選條件顯示文字
+function getFilterDisplayText(filter) {
+    switch(filter) {
+        case 'restored': return '主幹已復電';
+        case 'not_restored': return '主幹未復電';
+        default: return '全部事故饋線';
+    }
+}
 // 🔧 修正版：建立饋線群組鍵 - 使用更精確的時間分組
 function createFeederGroupKey(record, feeder) {
 const time = record.時間 || '';
@@ -7547,12 +7612,24 @@ function clearFaultMarkers() {
     console.log('🧹 已清除故障標記');
 }
 
-// 🆕 重新整理停電資料
+// 🔧 修正版：重新整理停電資料 - 保持篩選狀態
 async function refreshOutageData() {
     updateOutageStatus('正在重新整理...');
+    
+    // 🔧 記住當前篩選狀態
+    const currentFilter = document.getElementById('outageFilter')?.value || 'all';
+    
     const success = await loadOutageData();
     if (success) {
         showToast('✅ 停電資料已更新', 'success');
+        
+        // 🆕 重新應用篩選
+        if (currentFilter !== 'all') {
+            setTimeout(() => {
+                document.getElementById('outageFilter').value = currentFilter;
+                filterOutageByStatus();
+            }, 200);
+        }
     } else {
         showToast('❌ 停電資料更新失敗', 'error');
     }
