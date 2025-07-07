@@ -1015,15 +1015,16 @@ body {
         display: flex !important;
     }
     
-    .nav-tab {
+   .nav-tab {
         flex: 1;
-        padding: 12px;
+        padding: 10px 8px;
         background: transparent;
         color: #bdc3c7;
         border: none;
-        font-size: 14px;
+        font-size: 12px;
         cursor: pointer;
         transition: all 0.3s ease;
+        text-align: center;
     }
     
     .nav-tab.active {
@@ -1470,10 +1471,11 @@ body {
 	</head>
 	<body>
 	    <!-- 🆕 在這裡加入手機版導航 - 放在最頂部 -->
-    <div class="mobile-nav" style="display: none;">
-        <button class="nav-tab active" data-tab="map">🗺️ 地圖</button>
-        <button class="nav-tab" data-tab="controls">⚙️ 控制</button>
-    </div>
+	<div class="mobile-nav" style="display: none;">
+		<button class="nav-tab active" data-tab="map">🗺️ 地圖</button>
+		<button class="nav-tab" data-tab="controls">⚙️ 控制</button>
+		<button class="nav-tab" data-tab="layers">🎛️ 圖層</button>
+	</div>
 		<div class="header">
 			<h1>🗺️ 饋線圖地圖系統</h1>
 			<p>載入配電系統 JSON 檔案並自訂圖層顯示（支援點與線段高亮）</p>
@@ -6236,7 +6238,7 @@ function getOverlayDisplayName(layerName) {
 
 
 // 🆕 手機版導航功能
-// 🔧 修正版：手機版導航初始化 - 加入事件綁定檢查
+// 🔧 修正版：手機版導航初始化 - 加入圖層標籤
 function initMobileNavigation() {
   console.log('📱 初始化手機版導航...');
   
@@ -6256,16 +6258,6 @@ function initMobileNavigation() {
       return;
   }
   
-  // 🆕 檢查關鍵控制元素是否存在
-  const feederInput = document.getElementById('feederInput');
-  const feederDropdown = document.getElementById('feederDropdown');
-  
-  if (!feederInput || !feederDropdown) {
-      console.warn('⚠️ 關鍵控制元素尚未就緒，延遲初始化');
-      setTimeout(initMobileNavigation, 200);
-      return;
-  }
-  
   // 立即啟用導航功能
   mobileNav.style.display = 'flex';
   
@@ -6282,7 +6274,7 @@ function initMobileNavigation() {
       tab.addEventListener('click', handleTabClick);
   });
   
-  console.log('✅ 手機版導航初始化完成');
+  console.log('✅ 手機版導航初始化完成（包含圖層標籤）');
 }
 // 🆕 標籤點擊處理函數
 function handleTabClick(event) {
@@ -6301,7 +6293,7 @@ function handleTabClick(event) {
     console.log(`📱 切換到標籤: ${tabName}`);
 }
 
-// 🆕 顯示手機版標籤內容
+// 🔧 修正版：顯示手機版標籤內容
 function showMobileTab(tabName) {
   const sidebar = document.querySelector('.sidebar');
   const mapContainer = document.querySelector('.map-container');
@@ -6318,10 +6310,22 @@ function showMobileTab(tabName) {
           break;
           
       case 'controls':
+          sidebar.style.display = 'block';
+          // 🔧 修正：隱藏圖層控制，顯示主要控制功能
+          hideLayerControlsInMobile();
+          break;
+          
+      case 'layers':
+          sidebar.style.display = 'block';
+          // 🔧 修正：隱藏主要控制功能，只顯示圖層控制
+          showLayerControlsInMobile();
+          break;
+          
       case 'info':
           sidebar.style.display = 'block';
-          // 🆕 如果是控制或資訊標籤，可以滾動到特定區域
-          if (tabName === 'info' && currentFeederInfo) {
+          // 顯示所有內容
+          resetAllElementsDisplay();
+          if (currentFeederInfo) {
               const feederInfo = document.getElementById('feederInfo');
               if (feederInfo) {
                   feederInfo.scrollIntoView({ behavior: 'smooth' });
@@ -6330,7 +6334,98 @@ function showMobileTab(tabName) {
           break;
   }
 }
+// 🔧 修正版：在手機版隱藏圖層控制內容，保留主要控制功能
+function hideLayerControlsInMobile() {
+    const elementsToHide = [
+        '#feederInfo',
+        '.status-section',
+        '.layer-controls',
+        '.legend',
+        '#highlightControls'
+    ];
+    
+    elementsToHide.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.style.display = 'none';
+        }
+    });
+    
+    // 🔧 重要：確保主要控制功能顯示
+    const elementsToShow = [
+        '.outage-data-section',
+        '.disaster-report-section', 
+        '.feeder-selection-section',
+        '.nearby-search-section',
+        '.coordinate-input-section'
+    ];
+    
+    elementsToShow.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.style.display = 'block';
+        }
+    });
+}
+// 🔧 修正版：在手機版只顯示圖層控制內容
+function showLayerControlsInMobile() {
+    // 隱藏主要控制功能
+    const elementsToHide = [
+        '.outage-data-section',
+        '.disaster-report-section', 
+        '.feeder-selection-section',
+        '.nearby-search-section',
+        '.coordinate-input-section',
+        '.file-upload-section'
+    ];
+    
+    elementsToHide.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.style.display = 'none';
+        }
+    });
+    
+    // 顯示圖層控制相關內容
+    const elementsToShow = [
+        '#feederInfo',
+        '.status-section',
+        '.layer-controls', 
+        '.legend',
+        '#highlightControls'
+    ];
+    
+    elementsToShow.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.style.display = 'block';
+        }
+    });
+}
 
+// 🆕 新增：重置所有元素顯示狀態（用於切換回桌面版時）
+function resetAllElementsDisplay() {
+    const allElements = [
+        '.outage-data-section',
+        '.disaster-report-section', 
+        '.feeder-selection-section',
+        '.nearby-search-section',
+        '.coordinate-input-section',
+        '.file-upload-section',
+        '#feederInfo',
+        '.status-section',
+        '.layer-controls', 
+        '.legend',
+        '#highlightControls'
+    ];
+    
+    allElements.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.style.display = 'block';
+        }
+    });
+}
 
 // 🔧 修正版：重新初始化所有控制項 - 確保事件綁定
 function reinitializeControls() {
@@ -6541,12 +6636,11 @@ function switchToMapTab() {
     }
 }
 
-// 🔧 修正版：監聽視窗大小變化 - 移除重新載入邏輯
+// 🔧 修正版：監聽視窗大小變化 - 確保桌面版正常顯示
 window.addEventListener('resize', function() {
-    // 🔧 重要：移除重新載入邏輯，只保留必要的調整
     initMobileOptimizations();
     
-    // 🔧 修正：當從手機切換到桌面時，只調整顯示狀態，不重新載入
+    // 🔧 重要：當從手機切換到桌面時，重置所有元素顯示
     if (window.innerWidth > 768) {
         const sidebar = document.querySelector('.sidebar');
         const mapContainer = document.querySelector('.map-container');
@@ -6555,7 +6649,10 @@ window.addEventListener('resize', function() {
             sidebar.style.display = 'block';
             mapContainer.style.display = 'block';
             
-            // 🔧 重要：恢復原始側邊欄內容（如果被修改過），但不重新載入整個頁面
+            // 🔧 重要：重置所有元素顯示狀態
+            resetAllElementsDisplay();
+            
+            // 恢復原始側邊欄內容（如果被修改過）
             const originalContent = sidebar.getAttribute('data-original-content');
             if (originalContent) {
                 sidebar.innerHTML = originalContent;
@@ -6565,7 +6662,7 @@ window.addEventListener('resize', function() {
         }
     }
     
-    // 🔧 只調整地圖大小，不重新載入
+    // 調整地圖大小
     setTimeout(() => {
         if (map) {
             map.invalidateSize();
