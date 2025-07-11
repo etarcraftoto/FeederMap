@@ -4513,52 +4513,271 @@ function adjustColor(color, percent) {
         (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
 }
 
-	// 🌟 修改：創建 Opposite 紅色星星標記 - 調整垂直位置避免遮擋開關
-	function createOppositeStarMarker(position, oppositeText) {
-		console.log(`⭐ 創建 Opposite 紅色星星標記: ${oppositeText} at`, position);
-		
-		const starIcon = L.divIcon({
-			html: `
-				<div class="opposite-star-marker">
-					<div class="star-icon">⭐</div>
-					<div class="opposite-text">${oppositeText}</div>
-				</div>
-			`,
-			className: 'opposite-star-icon',
-			iconSize: [60, 25],   
-			iconAnchor: [8, 35]   // 🔧 修改：從 [8, 20] 改為 [8, 35]，讓星星往上偏移更多
-		});
-		
-		const starMarker = L.marker(position, { 
-			icon: starIcon,
-			zIndexOffset: 1000  // 確保星星顯示在最上層
-		});
-		
-		// 加入到星星圖層群組
-		oppositeLayerGroup.addLayer(starMarker);
-		
-		// 加入到全域星星陣列
-		oppositeStarMarkers.push(starMarker);
-		
-		// 加入點選事件顯示詳細資訊
-		starMarker.on('click', function(e) {
-			const popup = L.popup()
-				.setLatLng(position)
-				.setContent(`
-					<div style="text-align: center; padding: 5px;">
-						<h4 style="margin: 0 0 5px 0; color: #ff0000;">⭐ Opposite 標記</h4>
-						<p style="margin: 0; font-weight: bold; color: #c62828;">${oppositeText}</p>
-						<p style="margin: 5px 0 0 0; font-size: 11px; color: #666;">FSC 114 開關設備</p>
-					</div>
-				`)
-				.openOn(map);
-			
-			// 阻止事件冒泡
-			L.DomEvent.stopPropagation(e);
-		});
-		
-		return starMarker;
-	}
+// 🌟 修改：創建 Opposite 紅色星星標記 - 加入載入饋線按鈕
+function createOppositeStarMarker(position, oppositeText) {
+    console.log(`⭐ 創建 Opposite 紅色星星標記: ${oppositeText} at`, position);
+    
+    const starIcon = L.divIcon({
+        html: `
+            <div class="opposite-star-marker">
+                <div class="star-icon">⭐</div>
+                <div class="opposite-text">${oppositeText}</div>
+            </div>
+        `,
+        className: 'opposite-star-icon',
+        iconSize: [60, 25],   
+        iconAnchor: [8, 35]
+    });
+    
+    const starMarker = L.marker(position, { 
+        icon: starIcon,
+        zIndexOffset: 1000
+    });
+    
+    // 加入到星星圖層群組
+    oppositeLayerGroup.addLayer(starMarker);
+    
+    // 加入到全域星星陣列
+    oppositeStarMarkers.push(starMarker);
+    
+    // 🔧 修改：加入載入饋線按鈕的點選事件
+    starMarker.on('click', function(e) {
+        const popup = L.popup()
+            .setLatLng(position)
+            .setContent(createOppositePopupContent(oppositeText, position))
+            .openOn(map);
+        
+        // 阻止事件冒泡
+        L.DomEvent.stopPropagation(e);
+    });
+    
+    return starMarker;
+}
+
+// 🆕 新增：創建 Opposite 彈出視窗內容
+function createOppositePopupContent(oppositeText, position) {
+    // 🔧 檢查 oppositeText 是否為有效的饋線名稱
+    const isValidFeeder = checkIfValidFeeder(oppositeText);
+    
+    return `
+        <div style="text-align: center; padding: 8px; min-width: 200px;">
+            <h4 style="margin: 0 0 8px 0; color: #ff0000;">⭐ Opposite 標記</h4>
+            <div style="background: #fff3cd; padding: 8px; border-radius: 4px; margin: 8px 0;">
+                <p style="margin: 0; font-weight: bold; color: #c62828; font-size: 14px;">${oppositeText}</p>
+            </div>
+            <p style="margin: 5px 0; font-size: 11px; color: #666;">FSC 114 開關設備</p>
+            
+            <!-- 🆕 操作按鈕區域 -->
+            <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 6px;">
+                ${isValidFeeder ? `
+                    <button onclick="loadOppositeFeeder('${oppositeText}')" 
+                            style="width: 100%; padding: 10px 12px; background: linear-gradient(135deg, #28a745, #20c997); 
+                                   color: white; border: none; border-radius: 6px; cursor: pointer; 
+                                   font-size: 13px; font-weight: bold; transition: all 0.3s ease;
+                                   box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);"
+                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(40, 167, 69, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(40, 167, 69, 0.3)';">
+                        🗺️ 載入 ${oppositeText} 饋線
+                    </button>
+                ` : `
+                    <div style="padding: 8px; background: #f8d7da; border: 1px solid #f5c6cb; 
+                                border-radius: 4px; font-size: 11px; color: #721c24;">
+                        ⚠️ "${oppositeText}" 不在可載入的饋線清單中
+                    </div>
+                `}
+                
+                <button onclick="copyOppositeInfo('${oppositeText}', ${position[0]}, ${position[1]})" 
+                        style="width: 100%; padding: 8px 12px; background: #17a2b8; 
+                               color: white; border: none; border-radius: 4px; cursor: pointer; 
+                               font-size: 12px; transition: all 0.2s ease;"
+                        onmouseover="this.style.background='#138496';"
+                        onmouseout="this.style.background='#17a2b8';">
+                    📋 複製標記資訊
+                </button>
+                
+                <button onclick="map.closePopup()" 
+                        style="width: 100%; padding: 6px 12px; background: #6c757d; 
+                               color: white; border: none; border-radius: 4px; cursor: pointer; 
+                               font-size: 11px;"
+                        onmouseover="this.style.background='#5a6268';"
+                        onmouseout="this.style.background='#6c757d';">
+                    關閉
+                </button>
+            </div>
+            
+            <!-- 🆕 位置資訊 -->
+            <div style="margin-top: 8px; padding: 6px; background: #f8f9fa; border-radius: 4px; font-size: 10px; color: #666;">
+                📍 ${position[0].toFixed(6)}, ${position[1].toFixed(6)}
+            </div>
+        </div>
+    `;
+}
+// 🆕 新增：複製 Opposite 標記資訊
+function copyOppositeInfo(oppositeText, lat, lng) {
+    const infoText = `⭐ Opposite 標記資訊
+
+🔗 Opposite 饋線: ${oppositeText}
+📍 位置座標: ${lat.toFixed(6)}, ${lng.toFixed(6)}
+🏷️ 設備類型: FSC 114 開關設備
+📅 複製時間: ${new Date().toLocaleString('zh-TW')}
+
+※ 此標記表示與 ${oppositeText} 饋線相關的開關設備位置`;
+
+    // 複製到剪貼簿
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(infoText).then(() => {
+            showToast('📋 Opposite 標記資訊已複製！', 'success');
+            map.closePopup();
+        }).catch(err => {
+            console.error('複製失敗:', err);
+            fallbackCopyOppositeInfo(infoText);
+        });
+    } else {
+        fallbackCopyOppositeInfo(infoText);
+    }
+}
+// 🆕 新增：備用複製方法
+function fallbackCopyOppositeInfo(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
+        showToast('📋 Opposite 標記資訊已複製！', 'success');
+        map.closePopup();
+    } catch (err) {
+        console.error('複製失敗:', err);
+        showToast('❌ 複製失敗，請手動複製', 'error');
+        
+        // 顯示文字讓用戶手動複製
+        alert('請手動複製以下資訊：\n\n' + text);
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+// 🆕 新增：載入 Opposite 饋線功能
+function loadOppositeFeeder(oppositeText) {
+    console.log(`⚡ 準備載入 Opposite 饋線: ${oppositeText}`);
+    
+    // 清理饋線名稱
+    const cleanFeederName = oppositeText.trim().toUpperCase();
+    
+    // 🔧 檢查饋線是否存在於清單中
+    if (!feederList.includes(cleanFeederName)) {
+        showToast(`⚠️ 饋線 "${cleanFeederName}" 不在可載入清單中`, 'warning');
+        
+        // 🆕 提供建議的相似饋線名稱
+        const suggestions = findSimilarFeeders(cleanFeederName);
+        if (suggestions.length > 0) {
+            const suggestionText = suggestions.slice(0, 3).join(', ');
+            showToast(`💡 建議的相似饋線: ${suggestionText}`, 'info');
+        }
+        return;
+    }
+    
+    // 🔧 關閉彈出視窗
+    map.closePopup();
+    
+    // 🔧 設定饋線輸入框
+    const feederInput = document.getElementById('feederInput');
+    if (feederInput) {
+        feederInput.value = cleanFeederName;
+        
+        // 同步下拉選單
+        const feederDropdown = document.getElementById('feederDropdown');
+        if (feederDropdown) {
+            feederDropdown.value = cleanFeederName;
+        }
+        
+        // 🔧 顯示載入提示
+        showToast(`🔄 正在載入 Opposite 饋線: ${cleanFeederName}`, 'info');
+        
+        // 🔧 執行載入
+        try {
+            loadFeederFromCloud();
+        } catch (error) {
+            console.error('❌ 載入 Opposite 饋線失敗:', error);
+            showToast(`❌ 載入饋線失敗: ${error.message}`, 'error');
+        }
+        
+    } else {
+        console.error('❌ 找不到饋線輸入框');
+        showToast('❌ 系統錯誤：找不到饋線輸入框', 'error');
+    }
+}
+// 🆕 新增：尋找相似的饋線名稱
+function findSimilarFeeders(targetFeeder) {
+    if (!feederList || !Array.isArray(feederList)) {
+        return [];
+    }
+    
+    const suggestions = [];
+    
+    // 🔧 方法1：尋找相同前綴的饋線
+    const prefix = targetFeeder.substring(0, 2); // 取前兩個字符
+    const prefixMatches = feederList.filter(feeder => 
+        feeder.startsWith(prefix) && feeder !== targetFeeder
+    );
+    suggestions.push(...prefixMatches);
+    
+    // 🔧 方法2：尋找編輯距離相近的饋線（簡化版）
+    const closeMatches = feederList.filter(feeder => {
+        if (feeder === targetFeeder) return false;
+        
+        // 長度相似且有共同字符
+        const lengthDiff = Math.abs(feeder.length - targetFeeder.length);
+        if (lengthDiff <= 1) {
+            let commonChars = 0;
+            const minLength = Math.min(feeder.length, targetFeeder.length);
+            
+            for (let i = 0; i < minLength; i++) {
+                if (feeder[i] === targetFeeder[i]) {
+                    commonChars++;
+                }
+            }
+            
+            // 如果有超過一半的字符相同
+            return commonChars >= minLength / 2;
+        }
+        
+        return false;
+    });
+    
+    suggestions.push(...closeMatches);
+    
+    // 去重並限制數量
+    return [...new Set(suggestions)].slice(0, 5);
+}
+
+// 🆕 新增：檢查是否為有效的饋線名稱
+function checkIfValidFeeder(feederName) {
+    if (!feederName || typeof feederName !== 'string') {
+        return false;
+    }
+    
+    // 清理饋線名稱（移除空格、轉大寫）
+    const cleanFeederName = feederName.trim().toUpperCase();
+    
+    // 檢查是否在饋線清單中
+    if (feederList && Array.isArray(feederList)) {
+        return feederList.some(feeder => 
+            feeder.toUpperCase() === cleanFeederName
+        );
+    }
+    
+    // 🔧 備用檢查：使用正規表達式檢查饋線名稱格式
+    // 台電饋線名稱通常格式：數字+字母+數字 (如: 6A22, 5B15)
+    const feederPattern = /^[0-9]+[A-Z]+[0-9]+$/;
+    return feederPattern.test(cleanFeederName);
+}
+
 	// 簡化設備圖標 - 效能優化版
 	function getSimpleDeviceIcon(props) {
 		const fsc = props.FSC || props.fsc || '';
@@ -5163,7 +5382,10 @@ async function loadFeederFromCloud() {
         
         const loadTime = ((Date.now() - startTime) / 1000).toFixed(2);
         console.log(`🎉 饋線載入完成: ${loadTime}秒`);
-        
+        // 在 loadFeederFromCloud() 成功載入後加入
+		setTimeout(() => {
+			highlightOppositeMarkers(feederName);
+		}, 2000);
         section.classList.add('success');
         showToast(`🚀 載入完成！(${loadTime}秒)`, 'success');
         
