@@ -74,6 +74,10 @@ body {
     flex: 1;
     position: relative;
     margin-left: 0;
+	
+	    image-rendering: -webkit-optimize-contrast;
+    image-rendering: optimize-contrast;
+    image-rendering: crisp-edges;
 }
 
 #map {
@@ -1514,6 +1518,22 @@ body {
 .severity-輕微 { background-color: #ffc107; color: #212529; }
 .severity-不影響 { background-color: #6c757d; color: white; }
 .severity-未定義 { background-color: #e9ecef; color: #495057; }
+/* 🆕 圖層載入優化 */
+.leaflet-tile-container {
+    transition: opacity 0.2s ease-in-out;
+}
+
+.leaflet-tile {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    image-rendering: pixelated;
+}
+
+/* 🆕 位置標記優化 */
+.location-marker {
+    will-change: transform;
+    backface-visibility: hidden;
+}
 		</style>
 	</head>
 	<body>
@@ -2411,6 +2431,7 @@ const POSITION_THRESHOLD = 5; // 5公尺閾值
 let userHasDraggedMap = false; // 🆕 追蹤用戶是否拖曳過地圖
 let initialLocationSet = false; // 🆕 追蹤是否已設定初始位置
 // 🔧 修正版：平滑跟隨定位地點
+// 🔧 修正版：平滑跟隨定位地點 - 解決背景圖層載入問題
 function enableContinuousLocation() {
     if (navigator.geolocation) {
         isContinuousLocationEnabled = true;
@@ -2422,7 +2443,7 @@ function enableContinuousLocation() {
         if (btn) {
             btn.classList.add('active');
             btn.textContent = '⏹️ 停止定位';
-            btn.style.backgroundColor = '#dc3545'; // 紅色表示啟用狀態
+            btn.style.backgroundColor = '#dc3545';
             btn.style.color = 'white';
         }
 
@@ -2460,12 +2481,17 @@ function enableContinuousLocation() {
                 userLocationMarker.setLatLng([lat, lng]);
             }
 
-            // 地圖移動邏輯
+            // 🔧 修正：地圖移動邏輯 - 解決背景圖層載入問題
             if (!initialLocationSet) {
-                map.flyTo([lat, lng], Math.max(map.getZoom(), 16), {
-                    duration: 2.0,
-                    easeLinearity: 0.1
-                });
+                // 初次定位：使用 setView 而不是 flyTo，確保圖層正確載入
+                map.setView([lat, lng], Math.max(map.getZoom(), 16));
+                
+                // 🆕 強制重新載入圖層
+                setTimeout(() => {
+                    invalidateMapSize();
+                    refreshCurrentLayer();
+                }, 500);
+                
                 initialLocationSet = true;
                 console.log('📍 初次定位完成');
             } else if (!userHasDraggedMap) {
@@ -2473,10 +2499,16 @@ function enableContinuousLocation() {
                 const distanceFromCenter = currentCenter.distanceTo(currentPosition);
                 
                 if (distanceFromCenter > 200) {
-                    map.flyTo([lat, lng], map.getZoom(), {
-                        duration: 1.5,
-                        easeLinearity: 0.1
+                    // 🔧 修正：使用 panTo 而不是 flyTo，減少動畫效果但確保圖層載入
+                    map.panTo([lat, lng], {
+                        animate: true,
+                        duration: 1.0
                     });
+                    
+                    // 🆕 地圖移動完成後強制刷新圖層
+                    setTimeout(() => {
+                        refreshCurrentLayer();
+                    }, 1200);
                 }
             }
 
@@ -2495,8 +2527,73 @@ function enableContinuousLocation() {
         showToast('❌ 您的裝置不支援定位功能', 'error');
     }
 }
+// 🆕 新增：地圖尺寸無效化（確保正確渲染）
+function invalidateMapSize() {
+    try {
+        map.invalidateSize({
+            animate: false,
+            pan: false
+        });
+        console.log('🗺️ 地圖尺寸已重新計算');
+    } catch (error) {
+        console.warn('⚠️ 地圖尺寸重新計算失敗:', error);
+    }
+}
 
+// 🆕 新增：強制刷新當前圖層
+function refreshCurrentLayer() {
+    if (window.currentBaseLayer) {
+        try {
+            // 方法1：重新載入圖層
+            window.currentBaseLayer.redraw();
+            
+            // 方法2：如果有 _url 屬性，強制刷新
+            if (window.currentBaseLayer._url) {
+                const originalUrl = window.currentBaseLayer._url;
+                window.currentBaseLayer._url = originalUrl + '?refresh=' + Date.now();
+                window.currentBaseLayer.redraw();
+                
+                // 恢復原始 URL
+                setTimeout(() => {
+                    window.currentBaseLayer._url = originalUrl;
+                }, 100);
+            }
+            
+            console.log('🔄 已刷新背景圖層');
+        } catch (error) {
+            console.warn('⚠️ 圖層刷新失敗:', error);
+            
+            // 🔧 備用方案：重新設置圖層
+            fallbackRefreshLayer();
+        }
+    }
+}
 
+// 🆕 新增：備用圖層刷新方案
+function fallbackRefreshLayer() {
+    try {
+        // 取得當前選中的圖層類型
+        const selectedLayer = document.querySelector('input[name="baseLayer"]:checked');
+        if (selectedLayer) {
+            const layerName = selectedLayer.value;
+            
+            // 暫時移除當前圖層
+            if (window.currentBaseLayer) {
+                map.removeLayer(window.currentBaseLayer);
+            }
+            
+            // 重新添加圖層
+            setTimeout(() => {
+                if (window.mapLayers[layerName]) {
+                    window.currentBaseLayer = window.mapLayers[layerName].addTo(map);
+                    console.log('🔄 已重新載入背景圖層:', layerName);
+                }
+            }, 100);
+        }
+    } catch (error) {
+        console.error('❌ 備用圖層刷新也失敗:', error);
+    }
+}
 
 // 🔧 修正版：停用連續定位
 // 🔧 修正版：停用連續定位
@@ -5644,7 +5741,8 @@ let measureDistanceMode = false;
 let measureMarkers = [];
 let measureLines = [];
 
-// 修改主要切換函數
+
+// 🔧 修正版：跟隨裝置位置切換函數 - 加入圖層刷新
 function toggleFollowLocation() {
     console.log('📱 切換跟隨位置，當前狀態:', isFollowingLocation);
     
@@ -5655,11 +5753,10 @@ function toggleFollowLocation() {
     }
 }
 
-// 新的跟隨位置函數
+// 🔧 修正版：開始跟隨位置 - 優化地圖移動
 function startFollowingLocation() {
     console.log('📱 開始跟隨裝置位置...');
     
-    // 檢查定位支援
     if (!navigator.geolocation) {
         showToast('❌ 您的裝置不支援定位功能', 'error');
         return;
@@ -5688,7 +5785,7 @@ function startFollowingLocation() {
             
             // 檢查位置變化是否足夠大
             if (lastKnownPosition && lastKnownPosition.distanceTo(currentPosition) < 10) {
-                return; // 變化太小，不更新
+                return;
             }
             
             lastKnownPosition = currentPosition;
@@ -5710,13 +5807,17 @@ function startFollowingLocation() {
                 userLocationMarker.setLatLng([lat, lng]);
             }
             
-            // 平滑移動地圖到新位置
-            map.flyTo([lat, lng], Math.max(map.getZoom(), 16), {
-                duration: 1.5,
-                easeLinearity: 0.25
-            });
+            // 🔧 修正：使用更穩定的地圖移動方式
+            const targetZoom = Math.max(map.getZoom(), 16);
             
-            //showToast(`📍 位置已更新 (精度: ${accuracy.toFixed(0)}m)`, 'info');
+            // 使用 setView 而不是 flyTo，避免動畫導致的圖層載入問題
+            map.setView([lat, lng], targetZoom);
+            
+            // 🆕 延遲刷新圖層，確保地圖移動完成
+            setTimeout(() => {
+                refreshCurrentLayer();
+            }, 200);
+            
         },
         function(error) {
             console.error('位置監控錯誤:', error);
@@ -5739,8 +5840,8 @@ function startFollowingLocation() {
         },
         {
             enableHighAccuracy: true,
-            maximumAge: 5000,        // 5秒內的位置可重複使用
-            timeout: 15000           // 15秒超時
+            maximumAge: 5000,
+            timeout: 15000
         }
     );
     
