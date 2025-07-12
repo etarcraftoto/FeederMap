@@ -1539,7 +1539,7 @@ body {
 /* 🆕 指北針控制樣式 - 修改版 */
 .compass-controls {
     position: absolute;
-    bottom: 200px; /* 在跟隨位置按鈕上方 */
+    bottom: 85px; /* 更貼近跟隨裝置按鈕 */
     right: 10px;
     z-index: 1000;
     display: flex;
@@ -1548,7 +1548,7 @@ body {
 }
 
 .compass-btn {
-    background: #ff6b35;
+    background: #2196f3; /* 改為藍色底 */
     color: white;
     border: none;
     padding: 12px;
@@ -1568,28 +1568,28 @@ body {
 }
 
 .compass-btn:hover {
-    background: #e55a2b;
+    background: #1976d2; /* 深藍色 hover */
     transform: translateY(-1px) scale(1.05);
 }
 
 .compass-btn.active {
-    background: #dc3545 !important;
+    background: #0d47a1 !important; /* 深藍色啟動狀態 */
     color: white !important;
-    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+    box-shadow: 0 2px 8px rgba(13, 71, 161, 0.4);
     animation: compass-pulse 2s infinite;
 }
 
 @keyframes compass-pulse {
     0% { 
-        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+        box-shadow: 0 2px 8px rgba(13, 71, 161, 0.4);
         transform: scale(1);
     }
     50% { 
-        box-shadow: 0 4px 16px rgba(220, 53, 69, 0.6);
+        box-shadow: 0 4px 16px rgba(13, 71, 161, 0.6);
         transform: scale(1.05);
     }
     100% { 
-        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+        box-shadow: 0 2px 8px rgba(13, 71, 161, 0.4);
         transform: scale(1);
     }
 }
@@ -1597,7 +1597,7 @@ body {
 /* 手機版指北針調整 */
 @media (max-width: 768px) {
     .compass-controls {
-        bottom: 180px;
+        bottom: 75px; /* 手機版更貼近 */
         right: 15px;
     }
     
@@ -1607,6 +1607,35 @@ body {
         font-size: 16px;
         padding: 10px;
     }
+}
+
+/* 🔧 移除載入提示文字 */
+.loading-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    z-index: 2000;
+    display: none;
+}
+
+.spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #007bff;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 		</style>
 	</head>
@@ -2046,11 +2075,6 @@ body {
 						</button>
 					</div>
 
-					<!-- 🆕 載入提示 -->
-					<div id="loadingOverlay" class="loading-overlay">
-						<div class="spinner"></div>
-						<div>正在獲取位置...</div>
-					</div>
 										<button id="locateBtn" class="location-btn" onclick="toggleContinuousLocation()">
 						📍 定位
 					</button>
