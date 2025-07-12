@@ -1199,7 +1199,6 @@ body {
 }
 
 /* Google Maps 風格的定位圖標 */
-/* 🔧 修正版：位置標記樣式 - 減少動畫閃爍 */
 .location-marker {
     position: relative;
     width: 20px;
@@ -1207,18 +1206,17 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s ease; /* 🔧 加入平滑過渡 */
 }
 
-/* 🔧 減少光暈動畫強度 */
+/* 外圈光暈效果 */
 .location-marker::before {
     content: '';
     position: absolute;
     width: 40px;
     height: 40px;
-    background: rgba(66, 133, 244, 0.15); /* 🔧 降低透明度 */
+    background: rgba(66, 133, 244, 0.2);
     border-radius: 50%;
-    animation: pulse-glow-smooth 3s infinite; /* 🔧 放慢動畫 */
+    animation: pulse-glow 2s infinite;
     z-index: 1;
 }
 
@@ -1233,10 +1231,9 @@ body {
     border: 2px solid #4285f4;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     z-index: 2;
-    transition: all 0.3s ease; /* 🔧 平滑過渡 */
 }
 
-/* 中心藍色圓點 */
+/* 中心藍色圓點 - 加大尺寸 */
 .location-marker .center-dot {
     width: 12px;
     height: 12px;
@@ -1244,29 +1241,24 @@ body {
     border-radius: 50%;
     z-index: 3;
     position: relative;
-    transition: all 0.3s ease; /* 🔧 平滑過渡 */
 }
 
-/* 🔧 修正版：更平滑的光暈動畫 */
-@keyframes pulse-glow-smooth {
+/* 光暈動畫 */
+@keyframes pulse-glow {
     0% {
-        transform: scale(0.9);
-        opacity: 0.6;
+        transform: scale(0.8);
+        opacity: 0.8;
     }
     50% {
-        transform: scale(1.1);
-        opacity: 0.2;
+        transform: scale(1.2);
+        opacity: 0.3;
     }
     100% {
-        transform: scale(0.9);
-        opacity: 0.6;
+        transform: scale(0.8);
+        opacity: 0.8;
     }
 }
 
-/* 🔧 新增：位置標記容器優化 */
-.custom-location-icon {
-    transition: all 0.3s ease !important;
-}
 
 
 /* 手機版指北針調整 */
@@ -2162,12 +2154,6 @@ body {
 			let orientationHandler = null;
 			let lastHeading = null;
 			let loadingOverlay = null;
-			
-			// 🔧 完全修正版：跟隨裝置位置功能 - 解決閃爍問題
-			let userHasDraggedMap = false;
-			let initialLocationSet = false;
-			let lastUpdateTime = 0;
-			let isMapMoving = false; // 新增：追蹤地圖是否正在移動
 
 // 🔧 修正版：地圖初始化 - 加入旋轉功能
 async function initMap() {
@@ -2594,45 +2580,58 @@ function enableContinuousLocation() {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             const accuracy = position.coords.accuracy;
-            const currentTime = Date.now();
-            
-            // 🔧 防抖機制：限制更新頻率（最多每2秒更新一次）
-            if (currentTime - lastUpdateTime < 2000) {
-                return;
-            }
-            
             const currentPosition = L.latLng(lat, lng);
 
-            // 🔧 增加距離閾值，減少不必要的更新
-            if (lastPosition && lastPosition.distanceTo(currentPosition) < Math.max(20, accuracy)) {
+            if (lastPosition && lastPosition.distanceTo(currentPosition) < Math.max(10, accuracy/2)) {
                 return;
             }
 
             lastPosition = currentPosition;
-            lastUpdateTime = currentTime;
 
-            // 🔧 防止在地圖移動時更新
-            if (isMapMoving) {
-                console.log('🚫 地圖正在移動，跳過位置更新');
-                return;
+            // 更新或創建位置標記
+            if (!userLocationMarker) {
+                const locationIcon = L.divIcon({
+                    html: '<div class="location-marker"><div class="center-dot"></div></div>',
+                    className: 'custom-location-icon',
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20]
+                });
+                
+                userLocationMarker = L.marker([lat, lng], {
+                    icon: locationIcon
+                }).addTo(map);
+            } else {
+                userLocationMarker.setLatLng([lat, lng]);
             }
 
-            // 更新或創建位置標記（不觸發地圖移動）
-            updateLocationMarkerOnly(lat, lng);
-
-            // 🔧 地圖移動邏輯 - 完全重寫以防止閃爍
+            // 🔧 修正：地圖移動邏輯 - 解決背景圖層載入問題
             if (!initialLocationSet) {
-                // 初次定位：使用平滑移動
-                performSmoothMapMove(lat, lng, Math.max(map.getZoom(), 16), true);
+                // 初次定位：使用 setView 而不是 flyTo，確保圖層正確載入
+                map.setView([lat, lng], Math.max(map.getZoom(), 16));
+                
+                // 🆕 強制重新載入圖層
+                setTimeout(() => {
+                    invalidateMapSize();
+                    refreshCurrentLayer();
+                }, 500);
+                
                 initialLocationSet = true;
                 console.log('📍 初次定位完成');
             } else if (!userHasDraggedMap) {
                 const currentCenter = map.getCenter();
                 const distanceFromCenter = currentCenter.distanceTo(currentPosition);
                 
-                // 🔧 只有距離超過100公尺才移動地圖
-                if (distanceFromCenter > 100) {
-                    performSmoothMapMove(lat, lng, map.getZoom(), false);
+                if (distanceFromCenter > 200) {
+                    // 🔧 修正：使用 panTo 而不是 flyTo，減少動畫效果但確保圖層載入
+                    map.panTo([lat, lng], {
+                        animate: true,
+                        duration: 1.0
+                    });
+                    
+                    // 🆕 地圖移動完成後強制刷新圖層
+                    setTimeout(() => {
+                        refreshCurrentLayer();
+                    }, 1200);
                 }
             }
 
@@ -2642,77 +2641,14 @@ function enableContinuousLocation() {
             disableContinuousLocation();
         }, {
             enableHighAccuracy: true,
-            maximumAge: 5000,  // 🔧 減少快取時間
-            timeout: 15000
+            maximumAge: 10000,
+            timeout: 20000
         });
         
         console.log('📍 開始跟隨裝置位置');
     } else {
         showToast('❌ 您的裝置不支援定位功能', 'error');
     }
-}
-// 🆕 只更新位置標記，不移動地圖
-function updateLocationMarkerOnly(lat, lng) {
-    if (!userLocationMarker) {
-        const locationIcon = L.divIcon({
-            html: '<div class="location-marker"><div class="center-dot"></div></div>',
-            className: 'custom-location-icon',
-            iconSize: [40, 40],
-            iconAnchor: [20, 20]
-        });
-        
-        userLocationMarker = L.marker([lat, lng], {
-            icon: locationIcon,
-            zIndexOffset: 1000
-        }).addTo(map);
-    } else {
-        // 🔧 使用平滑的標記移動
-        userLocationMarker.setLatLng([lat, lng]);
-    }
-}
-// 🆕 平滑地圖移動函數 - 防止閃爍
-function performSmoothMapMove(lat, lng, zoom, isInitial) {
-    if (isMapMoving) {
-        console.log('🚫 地圖正在移動中，取消新的移動請求');
-        return;
-    }
-    
-    isMapMoving = true;
-    
-    // 🔧 使用 panTo 而不是 setView 或 flyTo
-    const moveOptions = {
-        animate: true,
-        duration: isInitial ? 0.5 : 1.5, // 初次快一點，後續慢一點
-        easeLinearity: 0.1,
-        noMoveStart: false
-    };
-    
-    // 🔧 監聽移動完成事件
-    const onMoveEnd = function() {
-        isMapMoving = false;
-        map.off('moveend', onMoveEnd);
-        console.log('✅ 地圖移動完成');
-    };
-    
-    map.on('moveend', onMoveEnd);
-    
-    // 🔧 執行平滑移動
-    if (isInitial && zoom !== map.getZoom()) {
-        // 初次定位需要改變縮放等級
-        map.setView([lat, lng], zoom, moveOptions);
-    } else {
-        // 後續只需要平移
-        map.panTo([lat, lng], moveOptions);
-    }
-    
-    // 🔧 安全措施：5秒後強制重置移動狀態
-    setTimeout(() => {
-        if (isMapMoving) {
-            isMapMoving = false;
-            map.off('moveend', onMoveEnd);
-            console.log('⏰ 強制重置地圖移動狀態');
-        }
-    }, 5000);
 }
 // 🆕 新增：地圖尺寸無效化（確保正確渲染）
 function invalidateMapSize() {
