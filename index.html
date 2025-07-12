@@ -21,6 +21,8 @@
 		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-compass@1.0.0/dist/leaflet-compass.css">
 		<script src="https://cdn.jsdelivr.net/npm/leaflet-compass@1.0.0/dist/leaflet-compass.js"></script>
 		<script src="https://unpkg.com/leaflet-rotate@0.1.4/dist/leaflet-rotate-src.js"></script>
+		<!-- 🆕 新增：Font Awesome 圖標庫 -->
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 		
 		<!-- 在 head 區域加入 Supabase 客戶端 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1534,6 +1536,95 @@ body {
     will-change: transform;
     backface-visibility: hidden;
 }
+/* 🆕 指北針控制樣式 */
+/* 🆕 指北針控制樣式 */
+.compass-controls {
+    position: absolute;
+    bottom: 160px;
+    right: 10px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.compass-btn {
+    background: #ff6b35;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+    min-width: 80px;
+    text-align: center;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.compass-btn:hover {
+    background: #e55a2b;
+    transform: translateY(-1px);
+}
+
+.compass-btn.active {
+    background: #dc3545 !important;
+    color: white !important;
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4); }
+    50% { box-shadow: 0 4px 16px rgba(220, 53, 69, 0.6); }
+    100% { box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4); }
+}
+
+/* 手機版指北針調整 */
+@media (max-width: 768px) {
+    .compass-controls {
+        bottom: 170px;
+        right: 15px;
+    }
+    
+    .compass-btn {
+        padding: 8px;
+        font-size: 12px;
+        min-width: 70px;
+    }
+}
+
+/* 🆕 載入提示樣式 */
+.loading-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    z-index: 2000;
+    display: none;
+}
+
+.spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #007bff;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
 		</style>
 	</head>
 	<body>
@@ -1964,7 +2055,23 @@ body {
 				
 				<!-- 修改：定位控制按鈕 -->
 				<div class="location-controls">
-					<button id="locateBtn" class="location-btn" onclick="toggleContinuousLocation()">
+								<!-- 🆕 指北針控制按鈕 -->
+					<!-- 🆕 指北針控制按鈕 -->
+					<div class="compass-controls">
+						<button id="compassBtn" class="compass-btn" onclick="toggleCompass()">
+							🧭 指北針
+						</button>
+						<button id="resetBtn" class="compass-btn" onclick="resetMapRotation()">
+							🔄 重置
+						</button>
+					</div>
+
+					<!-- 🆕 載入提示 -->
+					<div id="loadingOverlay" class="loading-overlay">
+						<div class="spinner"></div>
+						<div>正在獲取位置...</div>
+					</div>
+										<button id="locateBtn" class="location-btn" onclick="toggleContinuousLocation()">
 						📍 定位
 					</button>
 					 <button class="rotation-btn" id="followLocationBtn" onclick="toggleFollowLocation()">
@@ -2038,9 +2145,16 @@ body {
 			let currentReportPhotos = [];
 			// 🆕 修改地圖初始化函數
 			// 🔧 修正版：地圖初始化 - 確保所有組件完全載入後再啟用手機導航
+			// 🆕 指北針相關變數
+			let isCompassActive = false;
+			let orientationHandler = null;
+			let lastHeading = null;
+			let loadingOverlay = null;
+// 🔧 修正版：地圖初始化 - 加入旋轉功能
 async function initMap() {
-  console.log('🗺️ 初始化地圖...');
-     // 🔧 重要：初始化 Supabase
+    console.log('🗺️ 初始化地圖...');
+    
+    // 🔧 重要：初始化 Supabase
     const supabaseReady = initSupabase();
     if (!supabaseReady) {
         console.warn('⚠️ Supabase 未正確初始化，鄰近搜尋功能將無法使用');
@@ -2049,66 +2163,70 @@ async function initMap() {
         console.log('✅ Supabase 已成功初始化，鄰近搜尋功能可用');
         showToast('✅ 資料庫連接成功，鄰近搜尋功能已啟用', 'success');
     }
-  // 初始化超高速載入組件
-  feederCache = new FeederCache();
-  fastJsonLoader = new FastJsonLoader();
-  localStorageManager = new LocalStorageManager();
-  
-  // 建立地圖實例，預設中心點設在高雄
-  map = L.map('map', {
-      center: [22.67, 120.34],
-      zoom: 12,
-      maxZoom: 22,
-      rotate: true,
-      rotateControl: {
-          closeOnZeroBearing: false
-      },
-      bearing: 0,
-      zoomControl: false
-  });
-  
-  // 綁定地圖事件（保持原有邏輯）
-  bindMapEvents();
-  
-  // 定義座標系統
-  setupCoordinateSystems();
-  
-  // 建立地圖圖層
-  setupMapLayers();
-  
-  // 初始化箭頭和星星圖層群組
-  arrowLayerGroup = L.layerGroup().addTo(map);
-  oppositeLayerGroup = L.layerGroup().addTo(map);
-  
-  // 初始化測量工具
-  initializeMeasureTools();
-  
-  // 初始化圖層切換事件
-  initializeLayerSwitcher();
-  
-  // 載入饋線資料
-  await loadFeederDataFromSheet();
-  
-  // 建立進度條
-  createProgressBar();
-  
-  // 🔧 重要修正：確保所有控制項完全初始化後再啟用手機導航
-  // 延遲一點時間確保所有事件處理器都已綁定
-  setTimeout(() => {
-      initMobileNavigation();
-      console.log('📱 手機版導航延遲初始化完成');
-  }, 500);
-  
-  // 🔧 修正：停電資料改為背景載入，不阻塞主要功能
-  loadOutageDataInBackground();
-  
-  updateLoadStatus('地圖初始化完成，請選擇 JSON 檔案或從雲端載入...');
-  // 載入災情資料
-	setTimeout(() => {
-		loadDisasterData();
-	}, 2000);
-  
-  console.log('✅ 地圖初始化完成');
+    
+    // 初始化超高速載入組件
+    feederCache = new FeederCache();
+    fastJsonLoader = new FastJsonLoader();
+    localStorageManager = new LocalStorageManager();
+    
+    // 🆕 建立地圖實例，加入旋轉功能
+    map = L.map('map', {
+        center: [22.67, 120.34],
+        zoom: 12,
+        maxZoom: 22,
+        rotate: true, // 🆕 啟用旋轉功能
+        rotateControl: {
+            closeOnZeroBearing: false
+        },
+        bearing: 0, // 🆕 初始方位角
+        zoomControl: false
+    });
+    
+    // 🆕 取得載入提示元素
+    loadingOverlay = document.getElementById('loadingOverlay');
+    
+    // 綁定地圖事件（保持原有邏輯）
+    bindMapEvents();
+    
+    // 定義座標系統
+    setupCoordinateSystems();
+    
+    // 建立地圖圖層
+    setupMapLayers();
+    
+    // 初始化箭頭和星星圖層群組
+    arrowLayerGroup = L.layerGroup().addTo(map);
+    oppositeLayerGroup = L.layerGroup().addTo(map);
+    
+    // 初始化測量工具
+    initializeMeasureTools();
+    
+    // 初始化圖層切換事件
+    initializeLayerSwitcher();
+    
+    // 載入饋線資料
+    await loadFeederDataFromSheet();
+    
+    // 建立進度條
+    createProgressBar();
+    
+    // 🔧 重要修正：確保所有控制項完全初始化後再啟用手機導航
+    setTimeout(() => {
+        initMobileNavigation();
+        console.log('📱 手機版導航延遲初始化完成');
+    }, 500);
+    
+    // 🔧 修正：停電資料改為背景載入，不阻塞主要功能
+    loadOutageDataInBackground();
+    
+    updateLoadStatus('地圖初始化完成，請選擇 JSON 檔案或從雲端載入...');
+    
+    // 載入災情資料
+    setTimeout(() => {
+        loadDisasterData();
+    }, 2000);
+    
+    console.log('✅ 地圖初始化完成');
 }
 
 		// 🔧 新增：檢測並隱藏手機版全螢幕按鈕
@@ -10607,6 +10725,127 @@ async function showNearbyDevicesOnly() {
         showToast('❌ 您的瀏覽器不支援定位功能', 'error');
     }
 }
+// 🆕 指北針功能
+function toggleCompass() {
+    isCompassActive = !isCompassActive;
+    
+    if (isCompassActive) {
+        startCompass();
+    } else {
+        stopCompass();
+    }
+}
+
+function startCompass() {
+    const compassBtn = document.getElementById('compassBtn');
+    compassBtn.classList.add('active');
+    
+    // 檢查設備是否支援方向感測
+    if (window.DeviceOrientationEvent) {
+        // iOS 13+ 需要請求權限
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+                .then(response => {
+                    if (response === 'granted') {
+                        orientationHandler = handleOrientation;
+                        window.addEventListener("deviceorientation", orientationHandler, true);
+                        console.log('指北針已啟動');
+                        showToast('🧭 指北針已啟動', 'success');
+                    } else {
+                        showToast('需要方向感測權限才能使用指北針功能', 'error');
+                        stopCompass();
+                    }
+                })
+                .catch(error => {
+                    console.error('權限請求失敗:', error);
+                    showToast('無法啟動指北針功能', 'error');
+                    stopCompass();
+                });
+        } else {
+            // 非 iOS 設備或較舊版本
+            orientationHandler = handleOrientation;
+            window.addEventListener("deviceorientation", orientationHandler, true);
+            console.log('指北針已啟動');
+            showToast('🧭 指北針已啟動', 'success');
+        }
+    } else {
+        showToast('您的設備不支援方向感測功能', 'error');
+        stopCompass();
+    }
+}
+
+function stopCompass() {
+    isCompassActive = false;
+    const compassBtn = document.getElementById('compassBtn');
+    compassBtn.classList.remove('active');
+    
+    // 移除事件監聽器
+    if (orientationHandler) {
+        window.removeEventListener("deviceorientation", orientationHandler, true);
+        orientationHandler = null;
+    }
+    
+    // 重置地圖方向
+    if (map && map.setBearing) {
+        map.setBearing(0);
+    }
+    lastHeading = null;
+    
+    console.log('指北針已關閉，地圖方向已重置');
+    showToast('🧭 指北針已關閉', 'info');
+}
+
+function handleOrientation(event) {
+    if (!isCompassActive) return;
+    
+    // 獲取方位角 (alpha值)
+    let alpha = event.webkitCompassHeading || event.alpha;
+    
+    if (alpha !== null) {
+        // 將 alpha 值轉換為以正北為 0 度的方位角
+        let heading = alpha;
+        if (event.alpha !== undefined) {
+            heading = 360 - alpha; // 對於使用 alpha 的設備，需要反轉方向
+        }
+        
+        // 只有方向變化超過1度才更新地圖，避免過度更新
+        if (lastHeading === null || Math.abs(heading - lastHeading) > 1) {
+            rotateMap(heading);
+            lastHeading = heading;
+        }
+    }
+}
+
+function rotateMap(heading) {
+    // 設置地圖方位角 (平滑旋轉)
+    if (map && map.setBearing) {
+        map.setBearing(heading);
+    }
+}
+
+function resetMapRotation() {
+    if (map && map.setBearing) {
+        map.setBearing(0);
+    }
+    lastHeading = null;
+    console.log('地圖方向已重置');
+    showToast('🔄 地圖方向已重置', 'info');
+}
+
+// 🆕 處理頁面可見性變化
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        // 頁面隱藏時暫停功能
+        if (isCompassActive && orientationHandler) {
+            window.removeEventListener("deviceorientation", orientationHandler, true);
+        }
+    } else if (!document.hidden) {
+        // 頁面顯示時恢復功能
+        if (isCompassActive && orientationHandler) {
+            window.addEventListener("deviceorientation", orientationHandler, true);
+        }
+    }
+});
 		  </script>
 		  <!-- 照片放大模態框 -->
 		<div id="photo-modal" class="photo-modal">
