@@ -2085,10 +2085,7 @@ button[onclick*="openDisasterReportSystem"]:hover:before {
 								<input type="checkbox" id="roadMilestoneLayer" onchange="toggleOverlayLayer('wayMeter')">
 								<label for="roadMilestoneLayer">公路里程標誌</label>
 							</div>
-							 <div class="layer-option">
-								<input type="checkbox" id="cadastralLayer" onchange="toggleOverlayLayer('cadastral')">
-								<label for="cadastralLayer">地籍圖及重劃區圖</label>
-							</div>
+
 						</div>
 						
 						<div class="layer-group">
@@ -2108,6 +2105,10 @@ button[onclick*="openDisasterReportSystem"]:hover:before {
 							<div class="layer-option">
 								<input type="checkbox" id="nationalLandPlanLayer" onchange="toggleOverlayLayer('trafficNetwork')">
 								<label for="nationalLandPlanLayer">國土計畫圖</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="cadastralLayer" onchange="toggleOverlayLayer('cadastral')">
+								<label for="cadastralLayer">地籍圖及重劃區圖</label>
 							</div>
 						</div>
 						
@@ -2643,8 +2644,8 @@ function setupMapLayers() {
 						const layer = new CadastralTileLayer({
 							opacity: 0.8,
 							attribution: '© 高雄市政府地籍圖',
-							minZoom: 13,
-							maxZoom: 20,
+							minZoom: 2,
+							maxZoom: 36,
 							// 🆕 設定高 z-index，確保在 Google 圖層之上
 							zIndex: 1000
 						});
