@@ -2085,6 +2085,10 @@ button[onclick*="openDisasterReportSystem"]:hover:before {
 								<input type="checkbox" id="roadMilestoneLayer" onchange="toggleOverlayLayer('wayMeter')">
 								<label for="roadMilestoneLayer">公路里程標誌</label>
 							</div>
+							 <div class="layer-option">
+								<input type="checkbox" id="cadastralLayer" onchange="toggleOverlayLayer('cadastral')">
+								<label for="cadastralLayer">地籍圖及重劃區圖</label>
+							</div>
 						</div>
 						
 						<div class="layer-group">
@@ -2479,7 +2483,113 @@ function setupMapLayers() {
 					trafficNetwork: L.tileLayer('https://wmts.nlsc.gov.tw/wmts/LUIMAP/default/GoogleMapsCompatible/{z}/{y}/{x}', {
 						maxZoom: 19,
 						attribution: '© 內政部國土測繪中心'
-					})
+					}),
+					// 在 window.overlayLayers 中加入地籍圖層
+					cadastral: (function() {
+						// 定義座標轉換函數
+						function wgs84ToTwd97(lng, lat) {
+							try {
+								const result = proj4("EPSG:4326", "EPSG:3826", [lng, lat]);
+								return [Math.round(result[0]), Math.round(result[1])];
+							} catch (e) {
+								console.error('座標轉換錯誤:', e);
+								return [250000, 2500000];
+							}
+						}
+						
+						// 建立地籍圖瓦片層
+						const CadastralTileLayer = L.GridLayer.extend({
+							createTile: function (coords, done) {
+								const tile = L.DomUtil.create('img', 'leaflet-tile');
+								tile.style.opacity = '0';
+								
+								// 計算瓦片邊界
+								const bounds = this._tileCoordsToBounds(coords);
+								const sw = bounds.getSouthWest();
+								const ne = bounds.getNorthEast();
+								
+								// 精確座標轉換
+								const [swX, swY] = wgs84ToTwd97(sw.lng, sw.lat);
+								const [neX, neY] = wgs84ToTwd97(ne.lng, ne.lat);
+								
+								const bbox = `${swX},${swY},${neX},${neY}`;
+								
+								// 地籍圖 URL (使用你提供的新 URL)
+								const url = `https://gisdawh.kcg.gov.tw/landeasy/proxy/proxy2.ashx?` +
+									`https://mapgis2.kcg.gov.tw/server/rest/services/data/KCG_LANDEASY/MapServer/export?` +
+									`dpi=96&transparent=true&format=png32&` +
+									`layers=show:6,7&` +
+									`bbox=${bbox}&` +
+									`bboxSR=3826&imageSR=3826&` +
+									`size=256,256&f=image`;
+								
+								tile.onload = function() {
+									tile.style.transition = 'opacity 0.3s';
+									tile.style.opacity = '1';
+									done(null, tile);
+								};
+								
+								tile.onerror = function() {
+									// 備用方案
+									const fallbackUrl = `https://gisdawh.kcg.gov.tw/landeasy/proxy/proxy2.ashx?` +
+										`https://mapgis2.kcg.gov.tw/server/rest/services/data/KCG_LANDEASY/MapServer/export?` +
+										`dpi=96&transparent=true&format=png32&` +
+										`layers=show:7&` +
+										`bbox=${bbox}&` +
+										`bboxSR=3826&imageSR=3826&` +
+										`size=256,256&f=image`;
+									
+									tile.onerror = function() {
+										done(null, tile);
+									};
+									
+									tile.onload = function() {
+										tile.style.transition = 'opacity 0.3s';
+										tile.style.opacity = '1';
+										done(null, tile);
+									};
+									
+									tile.src = fallbackUrl;
+								};
+								
+								tile.src = url;
+								return tile;
+							},
+							
+							_tileCoordsToBounds: function (coords) {
+								const map = this._map;
+								const tileSize = this.getTileSize();
+								const nwPoint = coords.scaleBy(tileSize);
+								const sePoint = nwPoint.add(tileSize);
+								const nw = map.unproject(nwPoint, coords.z);
+								const se = map.unproject(sePoint, coords.z);
+								return new L.LatLngBounds(se, nw);
+							}
+						});
+						
+						const layer = new CadastralTileLayer({
+							opacity: 0.8,
+							attribution: '© 高雄市政府地籍圖',
+							minZoom: 13,
+							maxZoom: 20,
+							// 🆕 設定高 z-index，確保在 Google 圖層之上
+							zIndex: 1000
+						});
+						
+						// 🆕 當圖層被加入地圖時，確保它的 z-index 最高
+						layer.on('add', function() {
+							setTimeout(() => {
+								const pane = this.getPane();
+								if (pane) {
+									pane.style.zIndex = 1000;
+									pane.style.pointerEvents = 'none'; // 讓滑鼠事件穿透，不影響地圖操作
+								}
+							}, 100);
+						});
+						
+						return layer;
+					})()
+					
   };
   
   // 預設載入 Google 街景圖
@@ -6816,7 +6926,8 @@ function getOverlayDisplayName(layerName) {
         kaohsiungSlope: '高雄山坡地範圍',
         urbanPlan: '高雄市都市計畫圖',
         urbanPlanBoundary: '高雄市都市計畫範圍圖',
-        trafficNetwork: '國土計畫圖'
+        trafficNetwork: '國土計畫圖',
+        cadastral: '地籍圖及重劃區圖' // 🆕 加入這一行
     };
     return names[layerName] || layerName;
 }
