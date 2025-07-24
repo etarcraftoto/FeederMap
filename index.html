@@ -23,7 +23,7 @@
 		<script src="https://unpkg.com/leaflet-rotate@0.1.4/dist/leaflet-rotate-src.js"></script>
 		<!-- 🆕 新增：Font Awesome 圖標庫 -->
 		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-		
+		<script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
 		<!-- 在 head 區域加入 Supabase 客戶端 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 		<style>
@@ -2112,6 +2112,18 @@ button[onclick*="openDisasterReportSystem"]:hover:before {
 						</div>
 						
 						<div class="layer-group">
+							<h5>🚰 下水道系統圖層</h5>
+							<div class="layer-option">
+								<input type="checkbox" id="sewerSystemLayer" onchange="toggleOverlayLayer('sewerSystem')">
+								<label for="sewerSystemLayer">🔵 下水道管線</label>
+							</div>
+							<div class="layer-option">
+								<input type="checkbox" id="sewerManholesLayer" onchange="toggleOverlayLayer('sewerManholes')">
+								<label for="sewerManholesLayer">🔴 雨水竣工人孔</label>
+							</div>
+						</div>
+						
+						<div class="layer-group">
 							<h5>🎛️ 圖層控制</h5>
 							<div class="layer-opacity-control">
 								<span>透明度:</span>
@@ -2484,6 +2496,67 @@ function setupMapLayers() {
 						maxZoom: 19,
 						attribution: '© 內政部國土測繪中心'
 					}),
+					// 🆕 雨水管線圖層
+					sewerSystem: L.vectorGrid.protobuf('https://gis.liquid.net.tw/arcgis/rest/services/Hosted/CPAMI_Sewer_804020102/VectorTileServer/tile/{z}/{y}/{x}.pbf', {
+						vectorTileLayerStyles: {
+							'': {
+								weight: 2,
+								color: '#0066cc',
+								opacity: 0.8,
+								fillColor: '#0066cc',
+								fillOpacity: 0.3
+							}
+						},
+						rendererFactory: L.svg.tile,
+						attribution: '© 內政部營建署 - 下水道',
+						maxZoom: 30,
+						minZoom: 8,
+						interactive: true
+					}),
+
+		// 🎯 強制樣式設定版本
+		sewerManholes: (function() {
+			const layer = L.vectorGrid.protobuf('https://gis.liquid.net.tw/arcgis/rest/services/Hosted/CPAMI_Sewer_804020202/VectorTileServer/tile/{z}/{y}/{x}.pbf', {
+				vectorTileLayerStyles: {
+					'': function(properties, zoom) {
+						return {
+							radius: 1,
+							fillColor: '#e74c3c',
+							color: '#e74c3c',
+							weight: 0,
+							opacity: 1,
+							fillOpacity: 1
+						};
+					}
+				},
+				rendererFactory: L.svg.tile,
+				attribution: '© 內政部營建署 - 雨水人孔',
+				maxZoom: 30,
+				minZoom: 19,
+				interactive: true
+			});
+			
+			// 🔧 監聽瓦片載入完成事件
+			layer.on('tileload', function(e) {
+				console.log('🔍 瓦片載入完成');
+				// 強制重新設定所有圓點的樣式
+				setTimeout(() => {
+					const svgElements = document.querySelectorAll('.leaflet-overlay-pane svg circle');
+					svgElements.forEach(circle => {
+						if (circle.getAttribute('fill') === '#0000ff' || circle.getAttribute('fill') === 'blue') {
+							circle.setAttribute('fill', '#e74c3c');
+							circle.setAttribute('stroke', '#e74c3c');
+							circle.setAttribute('r', '2');
+							console.log('🎨 已修改圓點樣式');
+						}
+					});
+				}, 100);
+			});
+			
+			return layer;
+		})(),
+
+
 					// 在 window.overlayLayers 中加入地籍圖層
 					cadastral: (function() {
 						// 定義座標轉換函數
@@ -6927,7 +7000,9 @@ function getOverlayDisplayName(layerName) {
         urbanPlan: '高雄市都市計畫圖',
         urbanPlanBoundary: '高雄市都市計畫範圍圖',
         trafficNetwork: '國土計畫圖',
-        cadastral: '地籍圖及重劃區圖' // 🆕 加入這一行
+        cadastral: '地籍圖及重劃區圖', // 🆕 加入這一行
+		sewerSystem: '下水道管線',
+		sewerManholes: '雨水竣工人孔'
     };
     return names[layerName] || layerName;
 }
