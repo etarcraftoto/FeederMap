@@ -3029,11 +3029,15 @@ function searchByCoordinate() {
                 <p><strong>座標:</strong> ${coordinate}</p>
                 <p><strong>經緯度:</strong> ${lat.toFixed(3)}, ${lng.toFixed(3)}</p>
                 <button onclick="openStreetView(${lat}, ${lng})" 
-                        style="margin: 5px; padding: 5px 10px; background: #4285f4; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                        style="width: 100%; margin: 2px 0; padding: 10px; background: #ffc107; color: black; border: none; border-radius: 3px; cursor: pointer;">
                     🗺️ 街景圖
                 </button>
+				<button onclick="openNavigation(${lat}, ${lng}, '選定位置'); map.closePopup();" 
+						style="width: 100%; margin: 2px 0; padding: 10px; background: #ffc107; color: black; border: none; border-radius: 3px; cursor: pointer;">
+					🧭 導航至此
+				</button>
                 <button onclick="copyCoordinates(${lat}, ${lng})" 
-                        style="margin: 5px; padding: 5px 10px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                        style="width: 100%; margin: 2px 0; padding: 10px; background: #ffc107; color: black; border: none; border-radius: 3px; cursor: pointer;">
                     📋 複製座標
                 </button>
             </div>
@@ -8685,6 +8689,7 @@ function showDisasterReportDetails(report) {
         
         // 打開彈出窗口
         marker.openPopup();
+		showToast('已選擇災情標籤!', 'success')
     } else {
         showToast('該報告沒有有效的位置資訊', 'warning');
     }
@@ -11566,7 +11571,7 @@ function autoFillDeviceInfo() {
         }
         
         if (autoRemarks.length > 0) {
-            remarksTextarea.value = `[自動填入設備資訊]\n${autoRemarks.join('\n')}\n\n`;
+            //remarksTextarea.value = `[自動填入設備資訊]\n${autoRemarks.join('\n')}\n\n`;
             console.log(`✅ 已填入設備資訊到備註欄位`);
             
             // 高亮顯示已自動填入的欄位
