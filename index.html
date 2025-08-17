@@ -2781,6 +2781,15 @@ function bindMapEvents() {
   
   // 地圖點選事件
   map.on('click', function(e) {
+    const isMobile = window.innerWidth <= 768;
+    
+    // 🔧 修正：手機版不自動關閉拖曳面板（因為不會顯示）
+    if (!isMobile && draggableFaultPanel) {
+        setTimeout(() => {
+            closeDraggableFaultInfoPanel();
+        }, 100);
+    }
+    
       resetLineHighlight();
       const layerMenu = document.getElementById('layerMenu');
       if (layerMenu) {
@@ -5615,8 +5624,31 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 100);
     });
     
-    // 監聽視窗大小變化（不重新載入）
+    // 🔧 修正版：響應式處理 - 視窗大小變化時重新綁定事件
     window.addEventListener('resize', function() {
+        const wasMobile = document.body.classList.contains('mobile-mode');
+        const isMobile = window.innerWidth <= 768;
+        
+        if (wasMobile !== isMobile) {
+            console.log(`📱 裝置模式變更: ${wasMobile ? '手機' : '桌面'} → ${isMobile ? '手機' : '桌面'}`);
+            
+            // 更新 body class
+            if (isMobile) {
+                document.body.classList.add('mobile-mode');
+            } else {
+                document.body.classList.remove('mobile-mode');
+            }
+            
+            // 🔧 重要：如果從桌面切換到手機，關閉任何開啟的拖曳面板
+            if (isMobile && draggableFaultPanel) {
+                closeDraggableFaultInfoPanel();
+            }
+            
+            // 重新綁定故障標記事件
+            rebindFaultMarkersForMobile();
+        }
+        
+        // 原有的地圖大小調整
         setTimeout(() => {
             if (map) {
                 map.invalidateSize();
@@ -5625,9 +5657,132 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 100);
     });
 });
+// 🆕 新增：專門為手機版重新綁定故障標記事件
+function rebindFaultMarkersForMobile() {
+    const isMobile = window.innerWidth <= 768;
+    
+    faultLineMarkers.forEach(marker => {
+        // 移除舊的事件監聽器
+        marker.off('click');
+        
+        if (marker instanceof L.Polyline) {
+            // 重新綁定線段點擊事件
+            if (!isMobile) {
+                // 🖥️ 桌面版：顯示拖曳面板
+                marker.on('click', function(e) {
+                    const clickPosition = e.latlng;
+                    if (marker.faultInfo) {
+                        marker.faultInfo.clickPoint = [clickPosition.lat, clickPosition.lng];
+                        showDraggableFaultInfoPanel([clickPosition.lat, clickPosition.lng], '故障區間', '#ff0000', marker.faultInfo);
+                    }
+                    L.DomEvent.stopPropagation(e);
+                });
+            } else {
+                // 📱 手機版：顯示原始故障區間彈窗
+                marker.on('click', function(e) {
+                    if (marker.faultInfo) {
+                        const midLat = (marker.faultInfo.startPoint[0] + marker.faultInfo.endPoint[0]) / 2;
+                        const midLng = (marker.faultInfo.startPoint[1] + marker.faultInfo.endPoint[1]) / 2;
+                        
+                        const infoPopup = L.popup()
+                            .setLatLng([midLat, midLng])
+                            .setContent(`
+                                <div style="text-align: center;">
+                                    <h4 style="color: #dc3545; margin: 0 0 8px 0;">⚡ 故障區間</h4>
+                                    <p style="margin: 4px 0;"><strong>饋線:</strong> ${marker.faultInfo.feeder}</p>
+                                    <p style="margin: 4px 0;"><strong>區間:</strong> ${marker.faultInfo.faultSection}</p>
+                                    <p style="margin: 4px 0; font-size: 11px; color: #666;">
+                                        ${marker.faultInfo.coord1} ↔ ${marker.faultInfo.coord2}
+                                    </p>
+                                    <button onclick="clearFaultMarkers()" 
+                                            style="margin-top: 8px; padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                                        清除標記
+                                    </button>
+                                </div>
+                            `)
+                            .openOn(map);
+                    }
+                    L.DomEvent.stopPropagation(e);
+                });
+            }
+        } else if (marker instanceof L.Marker) {
+            // 重新綁定標記點擊事件
+            if (!isMobile) {
+                // 🖥️ 桌面版：顯示拖曳面板
+                marker.on('click', function(e) {
+                    if (marker.faultTitle && marker.faultColor) {
+                        showDraggableFaultInfoPanel(marker.getLatLng(), marker.faultTitle, marker.faultColor);
+                    }
+                    L.DomEvent.stopPropagation(e);
+                });
+            } else {
+                // 📱 手機版：顯示原本的 popup
+                marker.on('click', function(e) {
+                    marker.openPopup();
+                    L.DomEvent.stopPropagation(e);
+                });
+            }
+        }
+    });
+    
+    console.log(`🔄 已重新綁定 ${faultLineMarkers.length} 個故障標記的點擊事件 (${isMobile ? '手機版' : '桌面版'})`);
+}
+// 🆕 新增：檢測裝置類型的輔助函數
+function isMobileDevice() {
+    return window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}			  
 
-			  
-			  
+// 🆕 新增：重新綁定故障標記事件
+function rebindFaultMarkersEvents() {
+    const isMobile = window.innerWidth <= 768;
+    
+    faultLineMarkers.forEach(marker => {
+        // 移除舊的事件監聽器
+        marker.off('click');
+        
+        if (marker instanceof L.Polyline) {
+            // 重新綁定線段點擊事件
+            if (!isMobile) {
+                // 桌面版：顯示拖曳面板
+                marker.on('click', function(e) {
+                    const clickPosition = e.latlng;
+                    // 這裡需要從標記中取得故障資訊，可以在創建時儲存
+                    if (marker.faultInfo) {
+                        showDraggableFaultInfoPanel([clickPosition.lat, clickPosition.lng], '故障區間', '#ff0000', marker.faultInfo);
+                    }
+                    L.DomEvent.stopPropagation(e);
+                });
+            } else {
+                // 手機版：只顯示提示
+                marker.on('click', function(e) {
+                    if (marker.faultInfo) {
+                        showToast(`📍 ${marker.faultInfo.feeder} - ${marker.faultInfo.faultSection}`, 'info');
+                    }
+                    L.DomEvent.stopPropagation(e);
+                });
+            }
+        } else if (marker instanceof L.Marker) {
+            // 重新綁定標記點擊事件
+            if (!isMobile) {
+                marker.on('click', function(e) {
+                    if (marker.faultTitle && marker.faultColor) {
+                        showDraggableFaultInfoPanel(marker.getLatLng(), marker.faultTitle, marker.faultColor);
+                    }
+                    L.DomEvent.stopPropagation(e);
+                });
+            } else {
+                marker.on('click', function(e) {
+                    if (marker.faultTitle) {
+                        showToast(`📍 ${marker.faultTitle}`, 'info');
+                    }
+                    L.DomEvent.stopPropagation(e);
+                });
+            }
+        }
+    });
+    
+    console.log(`🔄 已重新綁定 ${faultLineMarkers.length} 個故障標記的點擊事件 (${isMobile ? '手機版' : '桌面版'})`);
+}			  
 // 🆕 修改後的初始化下拉選單函數
 // 🔧 修正版：初始化下拉選單函數 - 支援手機版重新初始化
 function initializeFeederDropdown() {
@@ -8128,6 +8283,14 @@ function showFeederDetailsInSidebar(feeder, records, statusColor, statusText) {
     document.body.style.overflow = 'hidden';
 }
 
+// 🔧 修正版：載入饋線並標註故障區間（手機版）
+function loadFeederWithRecordMobile(feeder, faultSection, recordIndex) {
+    closeFeederDetails();
+    
+    setTimeout(() => {
+        loadFeederWithRecord(feeder, faultSection, recordIndex);
+    }, 300);
+}
 // 🆕 直接載入饋線（手機版）
 function loadFeederDirectlyMobile(feeder) {
     closeFeederDetails();
@@ -8281,7 +8444,7 @@ function closeFeederDetails() {
         document.body.style.overflow = 'auto'; // 恢復背景滾動
     }
 }
-// 🆕 手機版故障位置顯示
+// 🔧 修正版：手機版故障位置顯示
 function showFaultLocationMobile(coord1, coord2, feeder, faultSection) {
     // 先關閉詳情頁面
     closeFeederDetails();
@@ -8364,8 +8527,7 @@ function getRecordStatusColor(record) {
     return '#dc3545'; // 紅色 - 故障中
 }
 
-// 🆕 顯示故障位置
-// 🔧 修改：顯示故障位置 - 加入自動載入饋線
+// 🔧 修正版：顯示故障位置 - 手機版只保留原始彈窗
 function showFaultLocation(coord1, coord2, feeder, faultSection) {
     try {
         console.log(`🗺️ 顯示故障位置: ${coord1} - ${coord2}`);
@@ -8380,11 +8542,14 @@ function showFaultLocation(coord1, coord2, feeder, faultSection) {
         // 清除之前的故障標記
         clearFaultMarkers();
         
-        // 建立閃爍標記
-        const marker1 = createBlinkingMarker([lat1, lng1], `故障起點\n${coord1}`, '#ff0000');
-        const marker2 = createBlinkingMarker([lat2, lng2], `故障終點\n${coord2}`, '#ff0000');
+        // 🔧 檢查是否為手機版
+        const isMobile = window.innerWidth <= 768;
         
-        // 建立連接線
+        // 建立閃爍標記
+        const marker1 = createBlinkingMarker([lat1, lng1], `故障起點\n${coord1}`, '#ff0000', isMobile);
+        const marker2 = createBlinkingMarker([lat2, lng2], `故障終點\n${coord2}`, '#ff0000', isMobile);
+        
+        // 建立故障線段
         const faultLine = L.polyline([[lat1, lng1], [lat2, lng2]], {
             color: '#ff0000',
             weight: 6,
@@ -8393,6 +8558,53 @@ function showFaultLocation(coord1, coord2, feeder, faultSection) {
             className: 'fault-line-animation'
         }).addTo(map);
         
+        // 🔧 重要修正：計算中間點位置
+        const midLat = (lat1 + lat2) / 2;
+        const midLng = (lng1 + lng2) / 2;
+        
+        // 🔧 根據裝置類型設定不同的點擊行為
+        if (!isMobile) {
+            // 🖥️ 桌面版：顯示拖曳面板
+            faultLine.on('click', function(e) {
+                const clickPosition = e.latlng;
+                const faultInfo = {
+                    feeder: feeder,
+                    faultSection: faultSection,
+                    coord1: coord1,
+                    coord2: coord2,
+                    startPoint: [lat1, lng1],
+                    endPoint: [lat2, lng2],
+                    clickPoint: [clickPosition.lat, clickPosition.lng]
+                };
+                showDraggableFaultInfoPanel([clickPosition.lat, clickPosition.lng], '故障區間', '#ff0000', faultInfo);
+                L.DomEvent.stopPropagation(e);
+            });
+        } else {
+            // 📱 手機版：顯示原始的故障區間彈窗
+            faultLine.on('click', function(e) {
+                // 🔧 重要：顯示原始的故障區間彈窗
+                const infoPopup = L.popup()
+                    .setLatLng([midLat, midLng])
+                    .setContent(`
+                        <div style="text-align: center;">
+                            <h4 style="color: #dc3545; margin: 0 0 8px 0;">⚡ 故障區間</h4>
+                            <p style="margin: 4px 0;"><strong>饋線:</strong> ${feeder}</p>
+                            <p style="margin: 4px 0;"><strong>區間:</strong> ${faultSection}</p>
+                            <p style="margin: 4px 0; font-size: 11px; color: #666;">
+                                ${coord1} ↔ ${coord2}
+                            </p>
+                            <button onclick="clearFaultMarkers()" 
+                                    style="margin-top: 8px; padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                                清除標記
+                            </button>
+                        </div>
+                    `)
+                    .openOn(map);
+                
+                L.DomEvent.stopPropagation(e);
+            });
+        }
+        
         // 儲存標記以便後續清除
         faultLineMarkers.push(marker1, marker2, faultLine);
         
@@ -8400,20 +8612,7 @@ function showFaultLocation(coord1, coord2, feeder, faultSection) {
         const bounds = L.latLngBounds([[lat1, lng1], [lat2, lng2]]);
         map.fitBounds(bounds, { padding: [50, 50] });
         
-        // 🆕 自動載入該饋線資料
-        const feederInput = document.getElementById('feederInput');
-        if (feederInput && feederList.includes(feeder)) {
-            feederInput.value = feeder;
-            showToast(`🔄 正在載入饋線 ${feeder}...`, 'info');
-            loadFeederFromCloud();
-        } else if (!feederList.includes(feeder)) {
-            showToast(`⚠️ 饋線 ${feeder} 不在可載入清單中`, 'warning');
-        }
-        
-        // 顯示故障資訊
-        const midLat = (lat1 + lat2) / 2;
-        const midLng = (lng1 + lng2) / 2;
-        
+        // 🔧 修正：只在一開始載入時顯示中間彈窗
         const infoPopup = L.popup()
             .setLatLng([midLat, midLng])
             .setContent(`
@@ -8432,7 +8631,22 @@ function showFaultLocation(coord1, coord2, feeder, faultSection) {
             `)
             .openOn(map);
         
-        showToast(`🗺️ 已標記 ${feeder} 故障位置`, 'success');
+        // 自動載入該饋線資料
+        const feederInput = document.getElementById('feederInput');
+        if (feederInput && feederList.includes(feeder)) {
+            feederInput.value = feeder;
+            showToast(`🔄 正在載入饋線 ${feeder}...`, 'info');
+            loadFeederFromCloud();
+        } else if (!feederList.includes(feeder)) {
+            showToast(`⚠️ 饋線 ${feeder} 不在可載入清單中`, 'warning');
+        }
+        
+        // 🔧 修正：不同裝置的提示訊息
+        if (isMobile) {
+            showToast(`🗺️ 已標記 ${feeder} 故障位置，點擊紅線查看詳情`, 'success');
+        } else {
+            showToast(`🗺️ 已標記 ${feeder} 故障位置，點擊紅色標記或線段查看詳情`, 'success');
+        }
         
     } catch (error) {
         console.error('顯示故障位置失敗:', error);
@@ -8440,8 +8654,15 @@ function showFaultLocation(coord1, coord2, feeder, faultSection) {
     }
 }
 
-// 🆕 建立閃爍標記
-function createBlinkingMarker(position, title, color) {
+
+
+// 🆕 全域變數：儲存可拖曳面板
+let draggableFaultPanel = null;
+
+// 🔧 修正版：建立閃爍標記 - 手機版不顯示拖曳面板
+
+// 🔧 修正版：建立閃爍標記 - 手機版只顯示簡單提示
+function createBlinkingMarker(position, title, color, isMobile = false) {
     const blinkingIcon = L.divIcon({
         html: `
             <div style="
@@ -8452,6 +8673,7 @@ function createBlinkingMarker(position, title, color) {
                 border-radius: 50%; 
                 box-shadow: 0 0 10px rgba(255,0,0,0.6);
                 animation: blink 1s infinite;
+                cursor: pointer;
             "></div>
             <style>
                 @keyframes blink {
@@ -8469,10 +8691,403 @@ function createBlinkingMarker(position, title, color) {
         .bindPopup(title)
         .addTo(map);
     
+    // 🔧 修正：根據裝置類型設定不同的點擊行為
+    if (!isMobile) {
+        // 🖥️ 桌面版：顯示拖曳面板
+        marker.on('click', function(e) {
+            showDraggableFaultInfoPanel(position, title, color);
+            L.DomEvent.stopPropagation(e);
+        });
+    } else {
+        // 📱 手機版：顯示原本的 popup
+        marker.on('click', function(e) {
+            marker.openPopup();
+            L.DomEvent.stopPropagation(e);
+        });
+    }
+    
     return marker;
 }
 
-// 🆕 清除故障標記
+// 🆕 新增：顯示可拖曳的故障資訊面板 - 支援文字選取
+function showDraggableFaultInfoPanel(position, title, color, faultInfo = null) {
+    // 移除現有面板
+    if (draggableFaultPanel) {
+        draggableFaultPanel.remove();
+        draggableFaultPanel = null;
+    }
+    
+    // 🔧 修正：計算面板顯示位置（在點擊位置附近）
+    const point = map.latLngToContainerPoint(position);
+    let panelLeft = point.x + 20; // 偏移一點避免遮擋
+    let panelTop = point.y - 100;  // 在點擊位置上方
+    
+    // 確保面板不會超出視窗範圍
+    const panelWidth = 300;
+    const panelHeight = 200;
+    
+    if (panelLeft + panelWidth > window.innerWidth) {
+        panelLeft = point.x - panelWidth - 20; // 放到左側
+    }
+    if (panelTop < 0) {
+        panelTop = point.y + 20; // 放到下方
+    }
+    if (panelTop + panelHeight > window.innerHeight) {
+        panelTop = window.innerHeight - panelHeight - 20;
+    }
+    
+    // 創建面板
+    const panel = document.createElement('div');
+    panel.id = 'draggable-fault-info-panel';
+    panel.style.cssText = `
+        position: fixed;
+        left: ${panelLeft}px;
+        top: ${panelTop}px;
+        width: 300px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        border: 2px solid ${color};
+        z-index: 2500;
+        font-family: Arial, sans-serif;
+        overflow: hidden;
+        cursor: move;
+        animation: fadeInScale 0.2s ease-out;
+    `;
+    
+    // 創建面板內容
+    let panelContent = `
+        <!-- 可拖曳標題列 -->
+        <div class="fault-info-header" style="
+            background: linear-gradient(135deg, ${color}, ${adjustColor(color, -20)}); 
+            color: white; 
+            padding: 8px 12px; 
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        ">
+            <div style="display: flex; align-items: center;">
+                <i class="fas fa-grip-horizontal" style="margin-right: 6px; opacity: 0.7; font-size: 10px;"></i>
+                <h4 style="margin: 0; font-size: 16px;">⚡ 故障區間資訊</h4>
+            </div>
+            <button onclick="closeDraggableFaultInfoPanel()" style="
+                background: rgba(255,255,255,0.2); 
+                color: white; 
+                border: none; 
+                border-radius: 50%; 
+                width: 20px; 
+                height: 20px; 
+                font-size: 10px; 
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                user-select: none;
+            ">✕</button>
+        </div>
+        
+        <!-- 面板內容 - 🔧 重要：允許文字選取 -->
+        <div class="fault-info-content" style="
+            padding: 12px; 
+            font-size: 12px;
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            cursor: text;
+        ">
+    `;
+    
+    if (faultInfo) {
+        // 🔧 修正：顯示簡化的故障資訊 - 支援文字選取
+        panelContent += `
+            <div style="margin-bottom: 10px;">
+                <div class="selectable-text" style="
+                    background: #f8f9fa; 
+                    padding: 8px; 
+                    border-radius: 4px; 
+                    margin-bottom: 8px;
+                    user-select: text;
+                    -webkit-user-select: text;
+                    cursor: text;
+                ">
+                    <div style="font-weight: bold; color: #dc3545; margin-bottom: 3px; font-size: 16px; user-select: text;">
+                        🏭 ${faultInfo.feeder}
+                    </div>
+                    <div style="color: #666; font-size: 16px; user-select: text;">
+                        📍 ${faultInfo.faultSection}
+                    </div>
+                </div>
+                
+                <!-- 🔧 修正：座標資訊各一行 - 支援文字選取 -->
+                <div class="selectable-text" style="
+                    background: #fff3cd; 
+                    padding: 8px; 
+                    border-radius: 4px; 
+                    margin-bottom: 6px;
+                    user-select: text;
+                    -webkit-user-select: text;
+                    cursor: text;
+                ">
+                    <div style="font-weight: bold; color: #856404; font-size: 16px; margin-bottom: 3px; user-select: text;">起訖圖號座標</div>
+                    <div style="color: #666; font-size: 16px; user-select: text; word-break: break-all;">${faultInfo.coord1} ↔ ${faultInfo.coord2}</div>
+                </div>
+                
+                <div class="selectable-text" style="
+                    background: #f8d7da; 
+                    padding: 8px; 
+                    border-radius: 4px; 
+                    margin-bottom: 10px;
+                    user-select: text;
+                    -webkit-user-select: text;
+                    cursor: text;
+                ">
+                    <div style="font-weight: bold; color: #721c24; font-size: 16px; margin-bottom: 3px; user-select: text;">經緯度座標</div>
+                    <div style="color: #666; font-size: 11px; user-select: text; word-break: break-all;">
+                        ${faultInfo.startPoint[0].toFixed(6)}, ${faultInfo.startPoint[1].toFixed(6)} ↔ 
+                        ${faultInfo.endPoint[0].toFixed(6)}, ${faultInfo.endPoint[1].toFixed(6)}
+                    </div>
+                </div>
+                
+                <!-- 🆕 新增：一鍵複製按鈕 -->
+                <div style="margin-bottom: 10px;">
+                    <button onclick="copyFaultInfoText('${faultInfo.feeder}', '${faultInfo.faultSection}', '${faultInfo.coord1}', '${faultInfo.coord2}', ${faultInfo.startPoint[0]}, ${faultInfo.startPoint[1]}, ${faultInfo.endPoint[0]}, ${faultInfo.endPoint[1]})" 
+                            style="width: 100%; padding: 8px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; user-select: none;">
+                        📋 複製故障資訊
+                    </button>
+                </div>
+            </div>
+        `;
+    } else {
+        // 顯示基本位置資訊 - 支援文字選取
+        panelContent += `
+            <div style="margin-bottom: 10px;">
+                <div class="selectable-text" style="
+                    background: #f8f9fa; 
+                    padding: 8px; 
+                    border-radius: 4px; 
+                    text-align: center; 
+                    margin-bottom: 8px;
+                    user-select: text;
+                    -webkit-user-select: text;
+                    cursor: text;
+                ">
+                    <div style="font-weight: bold; color: #dc3545; margin-bottom: 3px; user-select: text;">
+                        📍 ${title}
+                    </div>
+                    <div style="color: #666; font-size: 11px; user-select: text;">
+                        ${position[0].toFixed(6)}, ${position[1].toFixed(6)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    panelContent += `
+            <div style="text-align: center; padding-top: 8px; border-top: 1px solid #eee;">
+                <button onclick="closeDraggableFaultInfoPanel()" 
+                        style="padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px; user-select: none;">
+                    關閉
+                </button>
+            </div>
+        </div>
+        
+        <style>
+            @keyframes fadeInScale {
+                from {
+                    opacity: 0;
+                    transform: scale(0.8);
+                }
+                to {
+                    opacity: 1;
+                    transform: scale(1);
+                }
+            }
+            
+            /* 🆕 新增：確保文字選取樣式 */
+            .selectable-text::selection {
+                background-color: #007bff;
+                color: white;
+            }
+            
+            .selectable-text::-moz-selection {
+                background-color: #007bff;
+                color: white;
+            }
+            
+            /* 🆕 新增：滑鼠懸停提示 */
+            .selectable-text:hover {
+                background-color: rgba(0, 123, 255, 0.05) !important;
+                transition: background-color 0.2s ease;
+            }
+        </style>
+    `;
+    
+    panel.innerHTML = panelContent;
+    document.body.appendChild(panel);
+    draggableFaultPanel = panel;
+    
+    // 使面板可拖曳
+    makeFaultInfoPanelDraggable(panel);
+}
+
+
+// 🆕 新增：複製故障資訊文字功能
+function copyFaultInfoText(feeder, faultSection, coord1, coord2, startLat, startLng, endLat, endLng) {
+    const faultInfoText = `⚡ 故障區間資訊
+
+🏭 饋線：${feeder}
+📍 故障區間：${faultSection}
+
+📍 起訖圖號座標：
+${coord1} ↔ ${coord2}
+
+🌐 經緯度座標：
+${startLat.toFixed(6)}, ${startLng.toFixed(6)} ↔ ${endLat.toFixed(6)}, ${endLng.toFixed(6)}
+
+📅 複製時間：${new Date().toLocaleString('zh-TW')}`;
+
+    // 複製到剪貼簿
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(faultInfoText).then(() => {
+            showToast('📋 故障資訊已複製到剪貼簿！', 'success');
+        }).catch(err => {
+            console.error('複製失敗:', err);
+            fallbackCopyText(faultInfoText);
+        });
+    } else {
+        fallbackCopyText(faultInfoText);
+    }
+}
+
+// 🔧 修正版：使故障資訊面板可拖曳 - 避免拖曳時選取文字
+function makeFaultInfoPanelDraggable(panel) {
+    let isDragging = false;
+    let currentX;
+    let currentY;
+    let initialX;
+    let initialY;
+    let xOffset = 0;
+    let yOffset = 0;
+    
+    const header = panel.querySelector('.fault-info-header');
+    if (!header) return;
+    
+    // 獲取初始位置
+    const rect = panel.getBoundingClientRect();
+    xOffset = rect.left;
+    yOffset = rect.top;
+    
+    header.addEventListener('mousedown', dragStart);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', dragEnd);
+    
+    // 觸控支援
+    header.addEventListener('touchstart', dragStart, { passive: false });
+    document.addEventListener('touchmove', drag, { passive: false });
+    document.addEventListener('touchend', dragEnd);
+    
+    function dragStart(e) {
+        e.preventDefault();
+        
+        if (e.type === "touchstart") {
+            initialX = e.touches[0].clientX - xOffset;
+            initialY = e.touches[0].clientY - yOffset;
+        } else {
+            initialX = e.clientX - xOffset;
+            initialY = e.clientY - yOffset;
+        }
+        
+        if (e.target === header || header.contains(e.target)) {
+            isDragging = true;
+            panel.style.cursor = 'grabbing';
+            header.style.cursor = 'grabbing';
+            
+            // 🔧 重要：拖曳時暫時禁用文字選取
+            panel.style.userSelect = 'none';
+            panel.style.webkitUserSelect = 'none';
+            panel.style.mozUserSelect = 'none';
+            panel.style.msUserSelect = 'none';
+        }
+    }
+    
+    function drag(e) {
+        if (isDragging) {
+            e.preventDefault();
+            
+            if (e.type === "touchmove") {
+                currentX = e.touches[0].clientX - initialX;
+                currentY = e.touches[0].clientY - initialY;
+            } else {
+                currentX = e.clientX - initialX;
+                currentY = e.clientY - initialY;
+            }
+            
+            xOffset = currentX;
+            yOffset = currentY;
+            
+            // 限制拖曳範圍在視窗內
+            const rect = panel.getBoundingClientRect();
+            const maxX = window.innerWidth - rect.width;
+            const maxY = window.innerHeight - rect.height;
+            
+            xOffset = Math.max(0, Math.min(maxX, xOffset));
+            yOffset = Math.max(0, Math.min(maxY, yOffset));
+            
+            panel.style.left = `${xOffset}px`;
+            panel.style.top = `${yOffset}px`;
+        }
+    }
+    
+    function dragEnd(e) {
+        initialX = currentX;
+        initialY = currentY;
+        isDragging = false;
+        
+        panel.style.cursor = 'move';
+        header.style.cursor = 'move';
+        
+        // 🔧 重要：拖曳結束後恢復文字選取功能
+        setTimeout(() => {
+            panel.style.userSelect = '';
+            panel.style.webkitUserSelect = '';
+            panel.style.mozUserSelect = '';
+            panel.style.msUserSelect = '';
+            
+            // 恢復內容區域的文字選取
+            const content = panel.querySelector('.fault-info-content');
+            if (content) {
+                content.style.userSelect = 'text';
+                content.style.webkitUserSelect = 'text';
+                content.style.cursor = 'text';
+            }
+        }, 100);
+    }
+}
+// 🆕 新增：關閉可拖曳故障資訊面板
+function closeDraggableFaultInfoPanel() {
+    if (draggableFaultPanel) {
+        draggableFaultPanel.style.transition = 'all 0.2s ease';
+        draggableFaultPanel.style.opacity = '0';
+        draggableFaultPanel.style.transform = 'scale(0.8)';
+        
+        setTimeout(() => {
+            if (draggableFaultPanel && draggableFaultPanel.parentNode) {
+                draggableFaultPanel.remove();
+            }
+            draggableFaultPanel = null;
+        }, 200);
+    }
+}
+
+
+
+// 🔧 修正版：清除故障標記 - 同時關閉拖曳面板
 function clearFaultMarkers() {
     faultLineMarkers.forEach(marker => {
         if (map.hasLayer(marker)) {
@@ -8481,8 +9096,13 @@ function clearFaultMarkers() {
     });
     faultLineMarkers = [];
     map.closePopup();
-    console.log('🧹 已清除故障標記');
+    
+    // 關閉拖曳面板
+    closeDraggableFaultInfoPanel();
+    
+    console.log('🧹 已清除故障標記和面板');
 }
+
 
 // 🔧 修正版：重新整理停電資料 - 保持篩選狀態
 async function refreshOutageData() {
