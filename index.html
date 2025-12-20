@@ -18,10 +18,8 @@
 		<!-- 🔧 修正：最後載入依賴 Leaflet 的插件 -->
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.7.5/proj4.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/leaflet-rotatedmarker@0.2.0/leaflet.rotatedMarker.js"></script>
-		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-compass@1.0.0/dist/leaflet-compass.css">
-		<script src="https://cdn.jsdelivr.net/npm/leaflet-compass@1.0.0/dist/leaflet-compass.js"></script>
-		<script src="https://unpkg.com/leaflet-rotate@0.1.4/dist/leaflet-rotate-src.js"></script>
-				<!-- 🆕 新增：Font Awesome 圖標庫 -->
+		<link rel="stylesheet" href="https://raw.githubusercontent.com/stefanocudini/leaflet-compass/master/dist/leaflet-compass.min.css">
+       				<!-- 🆕 新增：Font Awesome 圖標庫 -->
 		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 		<script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
 		<!-- 🆕 新增：Font Awesome 圖標庫 -->
@@ -10848,7 +10846,7 @@ document.addEventListener('DOMContentLoaded', function() {
 const SUPABASE_URL = 'https://ulxrlnlebuxforumrsxi.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVseHJsbmxlYnV4Zm9ydW1yc3hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE2ODkxNjQsImV4cCI6MjA2NzI2NTE2NH0.xn9E81cq1-repD9ku-0UwTupqk-2e0f929Dnyl1OB6M';
 
-let supabase;
+//let supabase;
 
 // 🔧 修正：初始化 Supabase 連接
 function initSupabase() {
