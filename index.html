@@ -11976,27 +11976,36 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
         function handleOrientation(event) {
             if (!isCompassActive) return;
 
-            // 獲取方位角 (alpha值)
-            let alpha = event.webkitCompassHeading || event.alpha;
+            let heading = null;
 
-            if (alpha !== null) {
-                // 將 alpha 值轉換為以正北為 0 度的方位角
-                let heading = alpha;
-                if (event.alpha !== undefined) {
-                    heading = 360 - alpha; // 對於使用 alpha 的設備，需要反轉方向
-                }
+            if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+                // ✅ iOS Safari：webkitCompassHeading 直接就是磁北方位角（0~360，順時針）
+                // 手機朝北 = 0°，朝東 = 90°，朝南 = 180°，朝西 = 270°
+                heading = event.webkitCompassHeading;
 
-                // 只有方向變化超過1度才更新地圖，避免過度更新
-                if (lastHeading === null || Math.abs(heading - lastHeading) > 1) {
-                    rotateMap(heading);
-                    lastHeading = heading;
-                }
+            } else if (event.alpha !== null && event.alpha !== undefined) {
+                // ✅ Android Chrome：
+                // event.alpha 是裝置相對於地球座標系的旋轉角（Z軸）
+                // alpha=0 表示手機頂端朝北，但方向是逆時針計算
+                // 所以需要 360 - alpha 轉換為順時針方位角
+                heading = (360 - event.alpha) % 360;
             }
+
+            if (heading === null) return;
+
+            // 防抖：方向變化小於 1° 不更新，避免地圖抖動
+            if (lastHeading !== null) {
+                let diff = Math.abs(heading - lastHeading);
+                if (diff > 180) diff = 360 - diff; // 處理 0/360 邊界
+                if (diff < 1) return;
+            }
+
+            lastHeading = heading;
+            rotateMap(heading);
         }
 
         function rotateMap(heading) {
-            // 設置地圖方位角 (平滑旋轉)
-            if (map && map.setBearing) {
+            if (map && typeof map.setBearing === 'function') {
                 map.setBearing(heading);
             }
         }
