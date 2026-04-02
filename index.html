@@ -22,6 +22,7 @@
     <!-- 🆕 新增：Font Awesome 圖標庫 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
+    <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
 
     <!-- 在 head 區域加入 Supabase 客戶端 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -93,24 +94,16 @@
             image-rendering: optimize-contrast;
             image-rendering: crisp-edges;
         }
-        /* 旋轉外層容器：負責裁切，保持視窗大小 */
-        #map-rotation-wrapper {
+
+        #map {
             width: 100%;
             height: 100%;
             position: absolute;
             top: 0;
             left: 0;
-            overflow: hidden;   /* 裁切超出部分 */
-        }
-
-        #map {
-            width: 142%;
-            height: 142%;
-            position: absolute;
-            top: -21%;          /* (142-100)/2 = 21，置中 */
-            left: -21%;
-            transform-origin: center center;
-            transition: transform 0.1s linear;  /* 平滑旋轉 */
+            right: 0;
+            bottom: 0;
+            /* 刪除 transform-origin 和 transition */
         }
         /* 指北針旋轉時擴大地圖避免缺塊 */
         #map.compass-rotating {
@@ -2205,9 +2198,7 @@
                        box-shadow:0 3px 8px rgba(0,0,0,0.3);">
                 ☰
             </button>
-            <div id="map-rotation-wrapper">
-                <div id="map"></div>
-            </div>
+            <div id="map"></div>
             <!-- 🆕 在這裡加入：可收合圖層切換器 -->
             <div class="layer-switcher-compact" id="layerSwitcherCompact">
                 <button class="layer-toggle-btn" onclick="toggleLayerMenu()">
@@ -11931,144 +11922,135 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
             }
         }
 
-            function startCompass() {
-                if (!window.DeviceOrientationEvent) {
-                    showToast('❌ 您的裝置不支援方向感測功能', 'error');
-                    return;
-                }
-
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    // iOS 13+
-                    DeviceOrientationEvent.requestPermission()
-                        .then(function(response) {
-                            if (response === 'granted') {
-                                compassPermissionGranted = true;
-                                _activateCompass();
-                            } else {
-                                showToast('❌ 方向感測權限被拒絕', 'error');
-                            }
-                        })
-                        .catch(function(err) {
-                            console.error('權限請求失敗:', err);
-                            showToast('❌ 無法取得方向感測權限', 'error');
-                        });
-                } else {
-                    compassPermissionGranted = true;
-                    _activateCompass();
-                }
+        function startCompass() {
+            if (!window.DeviceOrientationEvent) {
+                showToast('❌ 您的裝置不支援方向感測功能', 'error');
+                return;
             }
 
-            function _activateCompass() {
-                isCompassActive = true;
-                lastHeading = null;
+            // iOS 13+ 需要請求權限
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(function(response) {
+                        if (response === 'granted') {
+                            compassPermissionGranted = true;
+                            _activateCompass();
+                        } else {
+                            showToast('❌ 方向感測權限被拒絕', 'error');
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('權限請求失敗:', err);
+                        showToast('❌ 無法取得方向感測權限', 'error');
+                    });
+            } else {
+                // Android 或其他裝置
+                compassPermissionGranted = true;
+                _activateCompass();
+            }
+        }
 
-                const btn = document.getElementById('compassBtn');
-                if (btn) {
-                    btn.classList.add('active');
-                    btn.title = '點擊關閉指北針';
-                }
 
-                orientationHandler = _handleDeviceOrientation;
+        function _activateCompass() {
+            isCompassActive = true;
+            lastHeading = null;
+
+            const btn = document.getElementById('compassBtn');
+            if (btn) {
+                btn.classList.add('active');
+                btn.title = '點擊關閉指北針';
+            }
+
+            orientationHandler = _handleDeviceOrientation;
+            window.addEventListener('deviceorientation', orientationHandler, true);
+
+            console.log('🧭 指北針已啟動');
+            showToast('🧭 指北針已啟動，地圖將跟隨手機方向旋轉', 'success');
+        }
+        function stopCompass() {
+            isCompassActive = false;
+
+            if (orientationHandler) {
+                window.removeEventListener('deviceorientation', orientationHandler, true);
+                orientationHandler = null;
+            }
+
+            // 重置地圖方向為正北
+            if (map && typeof map.setBearing === 'function') {
+                map.setBearing(0);
+            }
+
+            lastHeading = null;
+
+            const btn = document.getElementById('compassBtn');
+            if (btn) {
+                btn.classList.remove('active');
+                btn.title = '指北針';
+            }
+
+            console.log('🧭 指北針已關閉，地圖方向已重置');
+            showToast('🧭 指北針已關閉', 'info');
+        }
+
+        function _handleDeviceOrientation(event) {
+            if (!isCompassActive) return;
+
+            let heading = null;
+
+            if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+                // iOS Safari：直接使用，已是磁北方位角
+                heading = event.webkitCompassHeading;
+            } else if (event.absolute === true && event.alpha !== null) {
+                // Android Chrome（absolute 模式）
+                heading = (360 - event.alpha) % 360;
+            } else if (event.alpha !== null) {
+                // 其他裝置
+                heading = (360 - event.alpha) % 360;
+            }
+
+            if (heading === null) return;
+
+            // 防抖：方向變化小於 1.5° 不更新
+            if (lastHeading !== null) {
+                let diff = Math.abs(heading - lastHeading);
+                if (diff > 180) diff = 360 - diff; // 處理 0/360 邊界
+                if (diff < 1.5) return;
+            }
+
+            lastHeading = heading;
+            _rotateMapToHeading(heading);
+        }
+
+        function _rotateMapToHeading(heading) {
+            if (!map) return;
+
+            if (typeof map.setBearing === 'function') {
+                // leaflet-rotate 插件：地圖內部旋轉，瓦片自動補載
+                map.setBearing(heading);
+            } else {
+                // 插件未載入的提示
+                console.warn('⚠️ leaflet-rotate 插件未載入，無法旋轉地圖');
+                showToast('⚠️ 旋轉功能需要 leaflet-rotate 插件', 'warning');
+            }
+        }
+
+        function resetMapRotation() {
+            if (map && typeof map.setBearing === 'function') {
+                map.setBearing(0);
+            }
+            lastHeading = null;
+            showToast('🔄 地圖方向已重置為正北', 'info');
+        }
+
+        // 頁面可見性變化時暫停/恢復（省電）
+        document.addEventListener('visibilitychange', function() {
+            if (!isCompassActive || !orientationHandler) return;
+            if (document.hidden) {
+                window.removeEventListener('deviceorientation', orientationHandler, true);
+            } else {
                 window.addEventListener('deviceorientation', orientationHandler, true);
-
-                // 通知 Leaflet 地圖尺寸已改變（因為 #map 現在是 142%）
-                setTimeout(function() {
-                    if (map) map.invalidateSize({ animate: false });
-                }, 100);
-
-                console.log('🧭 指北針已啟動');
-                showToast('🧭 指北針已啟動', 'success');
             }
-
-            function stopCompass() {
-                isCompassActive = false;
-
-                if (orientationHandler) {
-                    window.removeEventListener('deviceorientation', orientationHandler, true);
-                    orientationHandler = null;
-                }
-
-                // 重置旋轉角度
-                const mapEl = document.getElementById('map');
-                if (mapEl) {
-                    mapEl.style.transform = 'rotate(0deg)';
-                }
-
-                lastHeading = null;
-
-                const btn = document.getElementById('compassBtn');
-                if (btn) {
-                    btn.classList.remove('active');
-                    btn.title = '指北針';
-                }
-
-                // 重置後通知 Leaflet
-                setTimeout(function() {
-                    if (map) map.invalidateSize({ animate: false });
-                }, 150);
-
-                console.log('🧭 指北針已關閉');
-                showToast('🧭 指北針已關閉', 'info');
-            }
-
-            function _handleDeviceOrientation(event) {
-                if (!isCompassActive) return;
-
-                let heading = null;
-
-                if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
-                    // iOS Safari
-                    heading = event.webkitCompassHeading;
-                } else if (event.absolute === true && event.alpha !== null) {
-                    // Android Chrome（absolute 事件，以真北為基準）
-                    heading = (360 - event.alpha) % 360;
-                } else if (event.alpha !== null) {
-                    // 一般 DeviceOrientationEvent
-                    heading = (360 - event.alpha) % 360;
-                }
-
-                if (heading === null) return;
-
-                // 防抖：變化小於 1.5° 不更新
-                if (lastHeading !== null) {
-                    let diff = Math.abs(heading - lastHeading);
-                    if (diff > 180) diff = 360 - diff; // 處理 0/360 邊界
-                    if (diff < 1.5) return;
-                }
-
-                lastHeading = heading;
-                _rotateMapToHeading(heading);
-            }
-
-            function _rotateMapToHeading(heading) {
-                if (!map) return;
-
-                // 旋轉 #map 元素本身，wrapper 保持不動做裁切
-                const mapEl = document.getElementById('map');
-                if (mapEl) {
-                    mapEl.style.transform = `rotate(${heading}deg)`;
-                }
-            }
-
-            function resetMapRotation() {
-                const mapEl = document.getElementById('map');
-                if (mapEl) {
-                    mapEl.style.transform = 'rotate(0deg)';
-                }
-                lastHeading = null;
-                showToast('🔄 地圖方向已重置為正北', 'info');
-            }
-
-            // 頁面可見性變化時暫停/恢復（省電）
-            document.addEventListener('visibilitychange', function() {
-                if (!isCompassActive || !orientationHandler) return;
-
-                if (document.hidden) {
-                    window.removeEventListener('deviceorientation', orientationHandler, true);
-                } else {
-                    window.addEventListener('deviceorientation', orientationHandler, true);
-                }
-            });
+        });
 
         // 🚨 災情查報系統 - 完整版
         // ==========================================
