@@ -1885,6 +1885,8 @@
                             <option value="淹水">淹水</option>
                             <option value="道路不通">道路不通</option>
                             <option value="危險地區">危險地區</option>
+                            <option value="大樹傾倒">大樹傾倒</option>
+                            <option value="山體滑落">山體滑落</option>
                             <option value="待確認">待確認</option>
                             <option value="B類案件">B類案件</option>
                             <option value="市府民代關切">市府民代關切</option>
@@ -11912,63 +11914,134 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
         }
 
         function startCompass() {
-            const compassBtn = document.getElementById('compassBtn');
-            compassBtn.classList.add('active');
+            if (!window.DeviceOrientationEvent) {
+                showToast('❌ 您的裝置不支援方向感測功能', 'error');
+                return;
+            }
 
-            // 檢查設備是否支援方向感測
-            if (window.DeviceOrientationEvent) {
-                // iOS 13+ 需要請求權限
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(response => {
-                            if (response === 'granted') {
-                                orientationHandler = handleOrientation;
-                                window.addEventListener("deviceorientation", orientationHandler, true);
-                                console.log('指北針已啟動');
-                                showToast('🧭 指北針已啟動', 'success');
-                            } else {
-                                showToast('需要方向感測權限才能使用指北針功能', 'error');
-                                stopCompass();
-                            }
-                        })
-                        .catch(error => {
-                            console.error('權限請求失敗:', error);
-                            showToast('無法啟動指北針功能', 'error');
-                            stopCompass();
-                        });
-                } else {
-                    // 非 iOS 設備或較舊版本
-                    orientationHandler = handleOrientation;
-                    window.addEventListener("deviceorientation", orientationHandler, true);
-                    console.log('指北針已啟動');
-                    showToast('🧭 指北針已啟動', 'success');
-                }
+            // iOS 13+ 需要明確請求權限
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(function (response) {
+                        if (response === 'granted') {
+                            compassPermissionGranted = true;
+                            _activateCompass();
+                        } else {
+                            showToast('❌ 方向感測權限被拒絕，無法啟動指北針', 'error');
+                        }
+                    })
+                    .catch(function (err) {
+                        console.error('DeviceOrientationEvent 權限請求失敗:', err);
+                        showToast('❌ 無法取得方向感測權限', 'error');
+                    });
             } else {
-                showToast('您的設備不支援方向感測功能', 'error');
-                stopCompass();
+                // Android 或不需要請求權限的裝置
+                compassPermissionGranted = true;
+                _activateCompass();
             }
         }
+
+        /**
+         * 實際啟動感測器監聽（內部函式）
+         */
+        function _activateCompass() {
+            isCompassActive = true;
+            lastHeading = null;
+
+            // 更新按鈕狀態
+            const btn = document.getElementById('compassBtn');
+            if (btn) {
+                btn.classList.add('active');
+                btn.title = '點擊關閉指北針';
+            }
+
+            // 建立處理函式並綁定
+            orientationHandler = _handleDeviceOrientation;
+            window.addEventListener('deviceorientation', orientationHandler, true);
+
+            console.log('🧭 指北針已啟動');
+            showToast('🧭 指北針已啟動，地圖將跟隨手機方向旋轉', 'success');
+        }
+
 
         function stopCompass() {
             isCompassActive = false;
-            const compassBtn = document.getElementById('compassBtn');
-            compassBtn.classList.remove('active');
 
-            // 移除事件監聽器
+            // 移除事件監聽
             if (orientationHandler) {
-                window.removeEventListener("deviceorientation", orientationHandler, true);
+                window.removeEventListener('deviceorientation', orientationHandler, true);
                 orientationHandler = null;
             }
 
-            // 重置地圖方向
-            if (map && map.setBearing) {
+            // 重置地圖方向為正北（0度）
+            if (map && typeof map.setBearing === 'function') {
                 map.setBearing(0);
             }
+
             lastHeading = null;
 
-            console.log('指北針已關閉，地圖方向已重置');
+            // 更新按鈕狀態
+            const btn = document.getElementById('compassBtn');
+            if (btn) {
+                btn.classList.remove('active');
+                btn.title = '指北針';
+            }
+
+            console.log('🧭 指北針已關閉，地圖方向已重置為正北');
             showToast('🧭 指北針已關閉', 'info');
         }
+        function _handleDeviceOrientation(event) {
+            if (!isCompassActive) return;
+
+            let heading = null;
+
+            if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+                // iOS Safari：webkitCompassHeading 直接是磁北方位角（0~360，順時針）
+                heading = event.webkitCompassHeading;
+            } else if (event.absolute === true && event.alpha !== null) {
+                // Android Chrome（absolute 事件）：alpha 以真北為基準
+                // Leaflet setBearing 是「地圖上方指向哪個方向」
+                // 若手機朝北（alpha≈0），地圖不需旋轉（bearing=0）
+                // 若手機朝東（alpha≈90），地圖需逆時針轉90度（bearing=90）
+                heading = (360 - event.alpha) % 360;
+            } else if (event.alpha !== null) {
+                // 一般 DeviceOrientationEvent（非 absolute）
+                // alpha 是相對方位，近似處理
+                heading = (360 - event.alpha) % 360;
+            }
+
+            if (heading === null) return;
+
+            // 防抖：方向變化小於 1.5 度不更新，避免地圖抖動
+            if (lastHeading !== null && Math.abs(heading - lastHeading) < 1.5) {
+                // 處理 0/360 邊界情況
+                const diff = Math.abs(heading - lastHeading);
+                if (diff < 1.5 || diff > 358.5) return;
+            }
+
+            lastHeading = heading;
+            _rotateMapToHeading(heading);
+        }
+        function _rotateMapToHeading(heading) {
+            if (!map) return;
+
+            if (typeof map.setBearing === 'function') {
+                // leaflet-rotate 插件提供的 setBearing
+                map.setBearing(heading);
+            } else {
+                // 備用：直接旋轉地圖容器 CSS（視覺效果，不影響座標）
+                const container = map.getContainer();
+                if (container) {
+                    container.style.transform = `rotate(${-heading}deg)`;
+                    container.style.transformOrigin = 'center center';
+                }
+            }
+        }
+
+        /**
+         * 旋轉地圖到指定方位角
+         * @param {number} heading - 方位角（0=正北，90=正東，順時針）
+         */
 
         function handleOrientation(event) {
             if (!isCompassActive) return;
@@ -12000,26 +12073,25 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
 
         // 🆕 修改：移除重置按鈕相關函數，整合到 stopCompass 中
         function resetMapRotation() {
-            if (map && map.setBearing) {
+            if (map && typeof map.setBearing === 'function') {
                 map.setBearing(0);
             }
             lastHeading = null;
-            console.log('地圖方向已重置');
-            showToast('🔄 地圖方向已重置', 'info');
+            showToast('🔄 地圖方向已重置為正北', 'info');
         }
 
-        // 🆕 處理頁面可見性變化
+        // 頁面可見性變化時暫停/恢復指北針（省電）
         document.addEventListener('visibilitychange', function () {
+            if (!isCompassActive || !orientationHandler) return;
+
             if (document.hidden) {
-                // 頁面隱藏時暫停功能
-                if (isCompassActive && orientationHandler) {
-                    window.removeEventListener("deviceorientation", orientationHandler, true);
-                }
-            } else if (!document.hidden) {
-                // 頁面顯示時恢復功能
-                if (isCompassActive && orientationHandler) {
-                    window.addEventListener("deviceorientation", orientationHandler, true);
-                }
+                // 頁面隱藏：暫停監聽
+                window.removeEventListener('deviceorientation', orientationHandler, true);
+                console.log('🧭 頁面隱藏，暫停指北針監聽');
+            } else {
+                // 頁面顯示：恢復監聽
+                window.addEventListener('deviceorientation', orientationHandler, true);
+                console.log('🧭 頁面顯示，恢復指北針監聽');
             }
         });
 
@@ -13091,6 +13163,8 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
             '淹水': { icon: '🌊', color: '#1565c0', bgColor: '#e3f2fd' },
             '道路不通': { icon: '🚧', color: '#e65100', bgColor: '#fff3e0' },
             '危險地區': { icon: '⚠️', color: '#b71c1c', bgColor: '#ffebee' },
+            '大樹傾倒': { icon: '🌳', color: '#5d4037', bgColor: '#efebe9' },
+            '山體滑落': { icon: '⛰️', color: '#546e7a', bgColor: '#eceff1' },
             '待確認': { icon: '❓', color: '#f57f17', bgColor: '#fffde7' },
             'B類案件': { icon: '🔧', color: '#1b5e20', bgColor: '#e8f5e9' },
             '市府民代關切': { icon: '🏛️', color: '#4a148c', bgColor: '#f3e5f5' },
