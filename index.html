@@ -9614,28 +9614,63 @@ ${startLat.toFixed(6)}, ${startLng.toFixed(6)} ↔ ${endLat.toFixed(6)}, ${endLn
                 return;
             }
 
-            showDisasterReportDetails(report);
+            // 沒有座標 → 只顯示 toast 提示
+            if (!report.location || !report.location.latitude || !report.location.longitude) {
+                showToast('該報告沒有有效的位置資訊', 'warning');
+                return;
+            }
+
+            const lat = report.location.latitude;
+            const lng = report.location.longitude;
+
+            // ① 手機版：切換到地圖 tab
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                const mapTab = document.querySelector('.nav-tab[data-tab="map"]');
+                if (mapTab) mapTab.click();
+            }
+
+            // ② 確保地圖上有這筆災情的標記（若已顯示就找現有的，否則臨時建立）
+            let targetMarker = null;
+
+            // 先從已顯示的 disasterMarkers 找
+            for (const m of disasterMarkers) {
+                const ll = m.getLatLng();
+                if (Math.abs(ll.lat - lat) < 0.00005 && Math.abs(ll.lng - lng) < 0.00005) {
+                    targetMarker = m;
+                    break;
+                }
+            }
+
+            // 找不到 → 臨時建立並加入 disasterMarkers
+            if (!targetMarker) {
+                targetMarker = createDisasterMarker(report);
+                disasterMarkers.push(targetMarker);
+            }
+
+            // ③ 飛到該位置，動畫結束後開啟 popup（仿 focusSpecialMarker 的做法）
+            map.flyTo([lat, lng], Math.max(map.getZoom(), 16), {
+                animate: true,
+                duration: 1.2
+            });
+
+            setTimeout(() => {
+                targetMarker.openPopup();
+                showToast('✅ 已定位到災情標籤', 'success');
+            }, 1300);
         }
 
         // 顯示災情報告詳情
         function showDisasterReportDetails(report) {
-            // 清除現有災情標記
-            clearDisasterMarkers();
+            if (!report) return;
 
-            // 在地圖上標記位置
-            if (report.location && report.location.latitude && report.location.longitude) {
-                const marker = createDisasterMarker(report);
-                disasterMarkers.push(marker);
-
-                // 移動地圖到該位置
-                map.setView([report.location.latitude, report.location.longitude], 16);
-
-                // 打開彈出窗口
-                marker.openPopup();
-                showToast('已選擇災情標籤!', 'success')
-            } else {
+            if (!report.location || !report.location.latitude || !report.location.longitude) {
                 showToast('該報告沒有有效的位置資訊', 'warning');
+                return;
             }
+
+            // 統一走 selectDisasterReport 的邏輯
+            selectDisasterReport(report.id);
         }
 
         // 建立災情標記
