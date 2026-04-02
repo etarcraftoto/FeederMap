@@ -11967,73 +11967,115 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
             console.log('🧭 指北針已啟動');
             showToast('🧭 指北針已啟動，地圖將跟隨手機方向旋轉', 'success');
         }
+
+
         function stopCompass() {
             isCompassActive = false;
 
+            // 移除事件監聽
             if (orientationHandler) {
                 window.removeEventListener('deviceorientation', orientationHandler, true);
                 orientationHandler = null;
             }
 
-            // 重置地圖方向為正北
+            // 重置地圖方向為正北（0度）
             if (map && typeof map.setBearing === 'function') {
                 map.setBearing(0);
             }
 
             lastHeading = null;
 
+            // 更新按鈕狀態
             const btn = document.getElementById('compassBtn');
             if (btn) {
                 btn.classList.remove('active');
                 btn.title = '指北針';
             }
 
-            console.log('🧭 指北針已關閉，地圖方向已重置');
+            console.log('🧭 指北針已關閉，地圖方向已重置為正北');
             showToast('🧭 指北針已關閉', 'info');
         }
-
         function _handleDeviceOrientation(event) {
             if (!isCompassActive) return;
 
             let heading = null;
 
             if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
-                // iOS Safari：直接使用，已是磁北方位角
+                // iOS Safari：webkitCompassHeading 直接是磁北方位角（0~360，順時針）
                 heading = event.webkitCompassHeading;
             } else if (event.absolute === true && event.alpha !== null) {
-                // Android Chrome（absolute 模式）
+                // Android Chrome（absolute 事件）：alpha 以真北為基準
+                // Leaflet setBearing 是「地圖上方指向哪個方向」
+                // 若手機朝北（alpha≈0），地圖不需旋轉（bearing=0）
+                // 若手機朝東（alpha≈90），地圖需逆時針轉90度（bearing=90）
                 heading = (360 - event.alpha) % 360;
             } else if (event.alpha !== null) {
-                // 其他裝置
+                // 一般 DeviceOrientationEvent（非 absolute）
+                // alpha 是相對方位，近似處理
                 heading = (360 - event.alpha) % 360;
             }
 
             if (heading === null) return;
 
-            // 防抖：方向變化小於 1.5° 不更新
-            if (lastHeading !== null) {
-                let diff = Math.abs(heading - lastHeading);
-                if (diff > 180) diff = 360 - diff; // 處理 0/360 邊界
-                if (diff < 1.5) return;
+            // 防抖：方向變化小於 1.5 度不更新，避免地圖抖動
+            if (lastHeading !== null && Math.abs(heading - lastHeading) < 1.5) {
+                // 處理 0/360 邊界情況
+                const diff = Math.abs(heading - lastHeading);
+                if (diff < 1.5 || diff > 358.5) return;
             }
 
             lastHeading = heading;
             _rotateMapToHeading(heading);
         }
-
         function _rotateMapToHeading(heading) {
             if (!map) return;
 
+            const mapContainer = map.getContainer();
+
             if (typeof map.setBearing === 'function') {
-                // leaflet-rotate 插件：地圖內部旋轉，瓦片自動補載
+                // 使用 leaflet-rotate 插件
                 map.setBearing(heading);
             } else {
-                // 插件未載入的提示
-                console.warn('⚠️ leaflet-rotate 插件未載入，無法旋轉地圖');
-                showToast('⚠️ 旋轉功能需要 leaflet-rotate 插件', 'warning');
+                // 備用 CSS 旋轉方案
+                mapContainer.style.transform = `rotate(${-heading}deg)`;
+                mapContainer.style.transformOrigin = 'center center';
             }
         }
 
+        /**
+         * 旋轉地圖到指定方位角
+         * @param {number} heading - 方位角（0=正北，90=正東，順時針）
+         */
+
+        function handleOrientation(event) {
+            if (!isCompassActive) return;
+
+            // 獲取方位角 (alpha值)
+            let alpha = event.webkitCompassHeading || event.alpha;
+
+            if (alpha !== null) {
+                // 將 alpha 值轉換為以正北為 0 度的方位角
+                let heading = alpha;
+                if (event.alpha !== undefined) {
+                    heading = 360 - alpha; // 對於使用 alpha 的設備，需要反轉方向
+                }
+
+                // 只有方向變化超過1度才更新地圖，避免過度更新
+                if (lastHeading === null || Math.abs(heading - lastHeading) > 1) {
+                    rotateMap(heading);
+                    lastHeading = heading;
+                }
+            }
+        }
+
+        function rotateMap(heading) {
+            // 設置地圖方位角 (平滑旋轉)
+            if (map && map.setBearing) {
+                map.setBearing(heading);
+            }
+        }
+
+        // 🆕 修改：移除重置按鈕相關函數，整合到 stopCompass 中
         function resetMapRotation() {
             if (map && typeof map.setBearing === 'function') {
                 map.setBearing(0);
@@ -12042,13 +12084,18 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
             showToast('🔄 地圖方向已重置為正北', 'info');
         }
 
-        // 頁面可見性變化時暫停/恢復（省電）
-        document.addEventListener('visibilitychange', function() {
+        // 頁面可見性變化時暫停/恢復指北針（省電）
+        document.addEventListener('visibilitychange', function () {
             if (!isCompassActive || !orientationHandler) return;
+
             if (document.hidden) {
+                // 頁面隱藏：暫停監聽
                 window.removeEventListener('deviceorientation', orientationHandler, true);
+                console.log('🧭 頁面隱藏，暫停指北針監聽');
             } else {
+                // 頁面顯示：恢復監聽
                 window.addEventListener('deviceorientation', orientationHandler, true);
+                console.log('🧭 頁面顯示，恢復指北針監聽');
             }
         });
 
