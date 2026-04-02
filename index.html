@@ -2466,6 +2466,9 @@
 
             // 初始化箭頭和星星圖層群組
             arrowLayerGroup = L.layerGroup().addTo(map);
+            map.on('zoomend', function () {
+                refreshAllArrows();
+            });
             oppositeLayerGroup = L.layerGroup().addTo(map);
 
             // 初始化測量工具
@@ -4617,87 +4620,89 @@
             return polyline;
         }
         // 為線段添加箭頭標記 - 效能優化版
-        // 為線段添加箭頭標記 - 修正版（不直接顯示）
+        // ─── 1. 替換 addArrowsToPolyline ───────────────────────────
         function addArrowsToPolyline(polyline, color) {
             const coordinates = polyline.getLatLngs();
             const arrowMarkers = [];
 
-            // 🔧 效能優化：根據地圖縮放等級調整密度
+            // 效能：縮放太小時完全不產生箭頭
             const currentZoom = map.getZoom();
-            let arrowInterval;
-
-            if (currentZoom >= 16) {
-                arrowInterval = 25;
-            } else if (currentZoom >= 14) {
-                arrowInterval = 50;
-            } else {
-                arrowInterval = 100;
-            }
+            if (currentZoom < 13) return arrowMarkers;
 
             const totalLength = calculatePolylineLength(coordinates);
-            const maxArrows = 10;
+
+            // 依縮放等級決定箭頭間距（公尺）
+            let arrowInterval;
+            if (currentZoom >= 17) arrowInterval = 30;
+            else if (currentZoom >= 15) arrowInterval = 60;
+            else if (currentZoom >= 13) arrowInterval = 120;
+            else arrowInterval = 9999; // 不顯示
+
+            // 每條線最多 5 個箭頭，避免手機崩潰
+            const maxArrows = 5;
             const calculatedInterval = Math.max(arrowInterval, totalLength / maxArrows);
 
             let currentDistance = 0;
-            let nextArrowDistance = calculatedInterval / 2;
+            let nextArrowDistance = calculatedInterval / 2; // 從線段中間開始放
             let arrowCount = 0;
 
             for (let i = 1; i < coordinates.length && arrowCount < maxArrows; i++) {
-                const segmentLength = coordinates[i - 1].distanceTo(coordinates[i]);
+                const segLen = coordinates[i - 1].distanceTo(coordinates[i]);
 
-                while (currentDistance + segmentLength >= nextArrowDistance && arrowCount < maxArrows) {
-                    const ratio = (nextArrowDistance - currentDistance) / segmentLength;
-                    const arrowPosition = interpolateLatLng(coordinates[i - 1], coordinates[i], ratio);
+                while (currentDistance + segLen >= nextArrowDistance && arrowCount < maxArrows) {
+                    const ratio = (nextArrowDistance - currentDistance) / segLen;
+                    const arrowPos = interpolateLatLng(coordinates[i - 1], coordinates[i], ratio);
                     const bearing = calculateBearing(coordinates[i - 1], coordinates[i]);
 
-                    const arrowMarker = createArrowMarkerOptimized(arrowPosition, bearing, color);
+                    const arrowMarker = createArrowMarkerOptimized(arrowPos, bearing, color);
                     arrowMarkers.push(arrowMarker);
-
-                    // 🔧 修正：不直接添加到地圖，只創建箭頭物件
-                    // 讓 toggleLayer 函數來控制是否顯示
-                    // arrowLayerGroup.addLayer(arrowMarker); // 移除這行
 
                     nextArrowDistance += calculatedInterval;
                     arrowCount++;
                 }
-
-                currentDistance += segmentLength;
+                currentDistance += segLen;
             }
 
             return arrowMarkers;
         }
-        // 🔧 效能優化版箭頭創建 - 放大1.5倍
         function createArrowMarkerOptimized(position, bearing, color) {
-            // 🔧 修改：箭頭尺寸放大1.5倍（從 3px/6px 改為 4.5px/9px）
+            /*
+            * 箭頭設計：
+            *   - 底寬 14px（左右各 7px）、高 18px
+            *   - transform-origin 設在三角形中心 (7px, 10px)
+            *     讓旋轉後箭頭尖端對齊線段方向，不偏移
+            *   - iconAnchor 同樣對齊中心，讓標記貼在線上
+            *   - className 清空，避免 Leaflet 加白色背景框
+            */
+            const W = 7;   // 半寬（border-left / border-right）
+            const H = 18;  // 高度（border-bottom）
+            const CX = W;                    // 旋轉中心 X = 半寬
+            const CY = Math.round(H * 0.55); // 旋轉中心 Y ≈ 三角形視覺重心
+
             const arrowIcon = L.divIcon({
-                html: `<div style="width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-bottom:9px solid ${color};transform:rotate(${bearing}deg);"></div>`,
-                className: 'arrow-icon',
-                iconSize: [18, 18],        // 🔧 從 [6, 6] 改為 [9, 9]
-                iconAnchor: [9, 18]     // 🔧 從 [3, 6] 改為 [4.5, 9]
+                html: `<div style="
+                        width: 0;
+                        height: 0;
+                        border-left: ${W}px solid transparent;
+                        border-right: ${W}px solid transparent;
+                        border-bottom: ${H}px solid ${color};
+                        transform-origin: ${CX}px ${CY}px;
+                        transform: rotate(${bearing}deg);
+                        opacity: 0.92;
+                        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
+                    "></div>`,
+                className: '',          // 清空，避免白色背景
+                iconSize: [W * 2, H],
+                iconAnchor: [CX, CY]    // 錨點 = 旋轉中心，確保對齊線段
             });
 
-            // 🔧 效能優化：禁用不必要的互動
             return L.marker(position, {
                 icon: arrowIcon,
-                interactive: false  // 禁用點選事件提升效能
+                interactive: false,
+                keyboard: false
             });
         }
-        // 🔧 效能優化版箭頭創建
-        function createArrowMarkerOptimized(position, bearing, color) {
-            // 簡化的箭頭 HTML - 減少 DOM 複雜度
-            const arrowIcon = L.divIcon({
-                html: `<div style="width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-bottom:6px solid ${color};transform:rotate(${bearing}deg);"></div>`,
-                className: 'arrow-icon',
-                iconSize: [6, 6],
-                iconAnchor: [3, 6]
-            });
 
-            // 🔧 效能優化：禁用不必要的互動
-            return L.marker(position, {
-                icon: arrowIcon,
-                interactive: false  // 禁用點選事件提升效能
-            });
-        }
 
         // 計算線段總長度（使用 Leaflet 的 distanceTo 方法）
         function calculatePolylineLength(coordinates) {
@@ -5792,7 +5797,56 @@
                 map.fitBounds(bounds, { padding: [20, 20] });
             }
         }
+        // ─── 4. 新增 refreshAllArrows 函數（放在 clearAllArrows 附近）───
+        function refreshAllArrows() {
+            // 清除所有現有箭頭
+            if (arrowLayerGroup) arrowLayerGroup.clearLayers();
 
+            const currentZoom = map.getZoom();
+            if (currentZoom < 13) return; // 太小就不顯示
+
+            // 批次重新產生（用 requestAnimationFrame 避免阻塞 UI）
+            let processed = 0;
+            const allPolylines = [];
+
+            // 收集所有可見的線段
+            Object.keys(layerGroups).forEach(categoryKey => {
+                const checkbox = document.getElementById(`layer_${categoryKey}`);
+                if (!checkbox || !checkbox.checked) return;
+
+                const layerGroup = layerGroups[categoryKey];
+                if (!layerGroup) return;
+
+                layerGroup.eachLayer(layer => {
+                    if (layer instanceof L.Polyline && layer.originalStyle) {
+                        allPolylines.push({ layer, color: layer.originalStyle.color });
+                    }
+                });
+            });
+
+            // 分批處理，每批 20 條，避免主執行緒阻塞
+            const BATCH_SIZE = 20;
+
+            function processBatch(startIdx) {
+                const endIdx = Math.min(startIdx + BATCH_SIZE, allPolylines.length);
+
+                for (let i = startIdx; i < endIdx; i++) {
+                    const { layer, color } = allPolylines[i];
+                    const newArrows = addArrowsToPolyline(layer, color);
+                    layer.arrowMarkers = newArrows;
+                    newArrows.forEach(marker => arrowLayerGroup.addLayer(marker));
+                }
+
+                processed = endIdx;
+                if (processed < allPolylines.length) {
+                    requestAnimationFrame(() => processBatch(processed));
+                }
+            }
+
+            if (allPolylines.length > 0) {
+                requestAnimationFrame(() => processBatch(0));
+            }
+        }
         // 🔧 修正版：頁面載入完成後的初始化 - 移除重新載入相關邏輯
         // 🔧 修正版：頁面載入完成後的初始化 - 優先處理分享連結
         document.addEventListener('DOMContentLoaded', function () {
