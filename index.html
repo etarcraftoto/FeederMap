@@ -13366,15 +13366,20 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
                 const statusCfg = STATUS_TEXT[marker.狀態] || { text: marker.狀態, color: '#666' };
 
                 // 🆕 confirmed / converted 半透明 + 打勾
-                const isDone = marker.狀態 === 'confirmed' || marker.狀態 === 'converted';
+               const isDone = marker.狀態 === 'confirmed' || marker.狀態 === 'converted';
                 const opacity = isDone ? '0.25' : '1';
+
+                // 🆕 依狀態決定尺寸
+                const iconW = isDone ? 20 : 32;
+                const iconH = isDone ? 20 : 32;
+                const fontSize = isDone ? '10px' : '16px';
                 const checkBadge = isDone
                     ? `<div style="
-                        position:absolute; bottom:-4px; right:-4px;
+                        position:absolute; bottom:-3px; right:-3px;
                         background:#28a745; color:white;
-                        border-radius:50%; width:16px; height:16px;
+                        border-radius:50%; width:10px; height:10px;
                         display:flex; align-items:center; justify-content:center;
-                        font-size:10px; font-weight:bold;
+                        font-size:7px; font-weight:bold;
                         border:1px solid white;
                         box-shadow:0 1px 3px rgba(0,0,0,0.3);">✓</div>`
                     : '';
@@ -13385,9 +13390,9 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
                             background: ${cfg.color};
                             color: white;
                             border-radius: 50%;
-                            width: 32px; height: 32px;
+                            width: ${iconW}px; height: ${iconH}px;
                             display: flex; align-items: center; justify-content: center;
-                            font-size: 16px;
+                            font-size: ${fontSize};
                             box-shadow: 0 2px 6px rgba(0,0,0,0.4);
                             border: 2px solid white;">
                             ${cfg.icon}
@@ -13395,9 +13400,10 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
                         ${checkBadge}
                     </div>`,
                     className: '',
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16]
+                    iconSize: [iconW, iconH],
+                    iconAnchor: [iconW / 2, iconH / 2]
                 });
+
 
                 const dispatchHTML = buildDispatchHTML(marker.派員記錄);
 
