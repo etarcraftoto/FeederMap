@@ -4665,7 +4665,7 @@
 
             return arrowMarkers;
         }
-       function createArrowMarkerOptimized(position, bearing, color) {
+        function createArrowMarkerOptimized(position, bearing, color) {
             const W = 7;
             const H = 18;
             const CX = W;
@@ -13252,11 +13252,11 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
             const container = document.getElementById('specialMarkerList');
             if (!container) return;
 
-            // 🆕 過濾：deleted 不顯示，只顯示 active
-            const visibleMarkers = markers.filter(m => m.狀態 === 'active');
+            // 🆕 只排除 deleted
+            const visibleMarkers = markers.filter(m => m.狀態 !== 'deleted');
 
             if (visibleMarkers.length === 0) {
-                container.innerHTML = '<div style="text-align:center;color:#28a745;padding:20px;">✅ 目前無進行中標籤</div>';
+                container.innerHTML = '<div style="text-align:center;color:#28a745;padding:20px;">✅ 目前無標籤資料</div>';
                 return;
             }
 
@@ -13270,16 +13270,25 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
                     ? marker.時間戳記.replace('2026/', '').replace('2025/', '')
                     : '';
 
+                // 🆕 依狀態決定樣式
+                const isDone = marker.狀態 === 'confirmed' || marker.狀態 === 'converted';
+                const itemOpacity = isDone ? '0.5' : '1';
+                const itemBg = isDone ? '#f0f0f0' : cfg.bgColor;
+                const itemBorderColor = isDone ? '#aaa' : cfg.color;
+                const textDecoration = isDone ? 'line-through' : 'none';
+                const donePrefix = isDone ? '✅ ' : '';
+
                 return `
                 <div onclick="focusSpecialMarker('${marker.標籤ID}')"
-                    style="margin-bottom:8px; padding:10px; background:${cfg.bgColor}; border-radius:6px;
-                            border-left:4px solid ${cfg.color}; cursor:pointer; transition:all 0.2s;"
-                    onmouseover="this.style.transform='translateY(-1px)'"
-                    onmouseout="this.style.transform='translateY(0)'">
+                    style="margin-bottom:8px; padding:10px; background:${itemBg}; border-radius:6px;
+                            border-left:4px solid ${itemBorderColor}; cursor:pointer; transition:all 0.2s;
+                            opacity:${itemOpacity};"
+                    onmouseover="this.style.opacity='1'; this.style.transform='translateY(-1px)'"
+                    onmouseout="this.style.opacity='${itemOpacity}'; this.style.transform='translateY(0)'">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                            <strong style="color:${cfg.color}; font-size:13px;">
-                                ${cfg.icon} ${marker.標籤類型}
+                            <strong style="color:${itemBorderColor}; font-size:13px; text-decoration:${textDecoration};">
+                                ${donePrefix}${cfg.icon} ${marker.標籤類型}
                             </strong>
                             <span style="margin-left:6px; font-size:10px; color:${statusCfg.color};
                                         background:white; padding:1px 5px; border-radius:8px;
@@ -13289,7 +13298,7 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
                         </div>
                         <span style="font-size:10px; color:#999;">${shortTime}</span>
                     </div>
-                    ${shortMsg ? `<div style="font-size:11px; color:#555; margin-top:4px;">${shortMsg}</div>` : ''}
+                    ${shortMsg ? `<div style="font-size:11px; color:#555; margin-top:4px; text-decoration:${textDecoration};">${shortMsg}</div>` : ''}
                     ${marker.辦理情形 ? `<div style="font-size:10px; color:#28a745; margin-top:2px;">📝 ${marker.辦理情形}</div>` : ''}
                 </div>`;
             }).join('');
@@ -13297,12 +13306,13 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
             container.innerHTML = html;
         }
 
+
         // 🔍 篩選標籤
         function filterSpecialMarkers() {
             const filter = document.getElementById('specialMarkerFilter').value;
             if (!specialMarkersData.length) return;
 
-            // 🆕 先排除 deleted，再套用篩選
+            // 🆕 永遠排除 deleted
             let filtered = specialMarkersData.filter(m => m.狀態 !== 'deleted');
 
             if (filter === 'active') {
@@ -13312,9 +13322,10 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
             } else if (filter === 'converted') {
                 filtered = filtered.filter(m => m.狀態 === 'converted');
             } else if (filter !== 'all') {
-                // 標籤類型篩選（淹水、道路不通 等）
+                // 標籤類型篩選（淹水、道路不通 等）- 顯示該類型所有非deleted
                 filtered = filtered.filter(m => m.標籤類型 === filter);
             }
+            // filter === 'all' 時顯示所有非 deleted
 
             renderSpecialMarkerList(filtered);
             updateSpecialMarkerStatus(`✅ 顯示 ${filtered.length} 個標籤`);
@@ -13366,7 +13377,7 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
                 const statusCfg = STATUS_TEXT[marker.狀態] || { text: marker.狀態, color: '#666' };
 
                 // 🆕 confirmed / converted 半透明 + 打勾
-               const isDone = marker.狀態 === 'confirmed' || marker.狀態 === 'converted';
+                const isDone = marker.狀態 === 'confirmed' || marker.狀態 === 'converted';
                 const opacity = isDone ? '0.25' : '1';
 
                 // 🆕 依狀態決定尺寸
