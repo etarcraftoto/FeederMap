@@ -5766,6 +5766,19 @@
 
             console.log('✅ 所有箭頭已清除');
         }
+        // 隱藏所有箭頭（不刪除，只從地圖移除）
+        function hideAllArrows() {
+            if (arrowLayerGroup) {
+                arrowLayerGroup.clearLayers();
+            }
+            console.log('🙈 已隱藏所有箭頭');
+        }
+
+        // 還原所有箭頭（重新產生）
+        function showAllArrows() {
+            refreshAllArrows();
+            console.log('👁️ 已還原所有箭頭');
+        }
 
         // 自動縮放到資料範圍
         function fitMapToData() {
@@ -12002,16 +12015,14 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
             const compassBtn = document.getElementById('compassBtn');
             compassBtn.classList.add('active');
 
-            // 檢查設備是否支援方向感測
             if (window.DeviceOrientationEvent) {
-                // iOS 13+ 需要請求權限
                 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
                     DeviceOrientationEvent.requestPermission()
                         .then(response => {
                             if (response === 'granted') {
                                 orientationHandler = handleOrientation;
                                 window.addEventListener("deviceorientation", orientationHandler, true);
-                                console.log('指北針已啟動');
+                                hideAllArrows(); // 🆕 開啟指南針時隱藏箭頭
                                 showToast('🧭 指北針已啟動', 'success');
                             } else {
                                 showToast('需要方向感測權限才能使用指北針功能', 'error');
@@ -12024,10 +12035,9 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
                             stopCompass();
                         });
                 } else {
-                    // 非 iOS 設備或較舊版本
                     orientationHandler = handleOrientation;
                     window.addEventListener("deviceorientation", orientationHandler, true);
-                    console.log('指北針已啟動');
+                    hideAllArrows(); // 🆕 開啟指南針時隱藏箭頭
                     showToast('🧭 指北針已啟動', 'success');
                 }
             } else {
@@ -12048,10 +12058,10 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
 
             if (map && map.setBearing) {
                 map.setBearing(0);
-                refreshAllArrows(); // 重置後刷新箭頭
             }
             lastHeading = null;
 
+            showAllArrows(); // 🆕 關閉指南針時還原箭頭
             showToast('🧭 指北針已關閉', 'info');
         }
 
