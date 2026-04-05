@@ -4665,19 +4665,15 @@
 
             return arrowMarkers;
         }
-        function createArrowMarkerOptimized(position, bearing, color) {
-            /*
-            * 箭頭設計：
-            *   - 底寬 14px（左右各 7px）、高 18px
-            *   - transform-origin 設在三角形中心 (7px, 10px)
-            *     讓旋轉後箭頭尖端對齊線段方向，不偏移
-            *   - iconAnchor 同樣對齊中心，讓標記貼在線上
-            *   - className 清空，避免 Leaflet 加白色背景框
-            */
-            const W = 7;   // 半寬（border-left / border-right）
-            const H = 18;  // 高度（border-bottom）
-            const CX = W;                    // 旋轉中心 X = 半寬
-            const CY = Math.round(H * 0.55); // 旋轉中心 Y ≈ 三角形視覺重心
+       function createArrowMarkerOptimized(position, bearing, color) {
+            const W = 7;
+            const H = 18;
+            const CX = W;
+            const CY = Math.round(H * 0.55);
+
+            // 取得地圖目前的 bearing（指北針旋轉量），補償箭頭方向
+            const mapBearing = (map && typeof map.getBearing === 'function') ? map.getBearing() : 0;
+            const compensatedBearing = bearing - mapBearing;
 
             const arrowIcon = L.divIcon({
                 html: `<div style="
@@ -4687,13 +4683,13 @@
                         border-right: ${W}px solid transparent;
                         border-bottom: ${H}px solid ${color};
                         transform-origin: ${CX}px ${CY}px;
-                        transform: rotate(${bearing}deg);
+                        transform: rotate(${compensatedBearing}deg);
                         opacity: 0.92;
                         filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
                     "></div>`,
-                className: '',          // 清空，避免白色背景
+                className: '',
                 iconSize: [W * 2, H],
-                iconAnchor: [CX, CY]    // 錨點 = 旋轉中心，確保對齊線段
+                iconAnchor: [CX, CY]
             });
 
             return L.marker(position, {
@@ -4702,7 +4698,6 @@
                 keyboard: false
             });
         }
-
 
         // 計算線段總長度（使用 Leaflet 的 distanceTo 方法）
         function calculatePolylineLength(coordinates) {
@@ -12046,19 +12041,17 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
             const compassBtn = document.getElementById('compassBtn');
             compassBtn.classList.remove('active');
 
-            // 移除事件監聽器
             if (orientationHandler) {
                 window.removeEventListener("deviceorientation", orientationHandler, true);
                 orientationHandler = null;
             }
 
-            // 重置地圖方向
             if (map && map.setBearing) {
                 map.setBearing(0);
+                refreshAllArrows(); // 重置後刷新箭頭
             }
             lastHeading = null;
 
-            console.log('指北針已關閉，地圖方向已重置');
             showToast('🧭 指北針已關閉', 'info');
         }
 
@@ -12093,6 +12086,8 @@ ${report.remarks ? `💬 備註：${report.remarks}` : ''}
         function rotateMap(heading) {
             if (map && typeof map.setBearing === 'function') {
                 map.setBearing(heading);
+                // 地圖旋轉後重新整理箭頭方向補償
+                refreshAllArrows();
             }
         }
 
