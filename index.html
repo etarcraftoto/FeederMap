@@ -5807,17 +5807,20 @@
         }
         // ─── 4. 新增 refreshAllArrows 函數（放在 clearAllArrows 附近）───
         function refreshAllArrows() {
+            // 🆕 指南針啟動中，不顯示箭頭
+            if (isCompassActive) {
+                if (arrowLayerGroup) arrowLayerGroup.clearLayers();
+                return;
+            }
+
             // 清除所有現有箭頭
             if (arrowLayerGroup) arrowLayerGroup.clearLayers();
 
             const currentZoom = map.getZoom();
-            if (currentZoom < 13) return; // 太小就不顯示
+            if (currentZoom < 13) return;
 
-            // 批次重新產生（用 requestAnimationFrame 避免阻塞 UI）
-            let processed = 0;
             const allPolylines = [];
 
-            // 收集所有可見的線段
             Object.keys(layerGroups).forEach(categoryKey => {
                 const checkbox = document.getElementById(`layer_${categoryKey}`);
                 if (!checkbox || !checkbox.checked) return;
@@ -5832,7 +5835,6 @@
                 });
             });
 
-            // 分批處理，每批 20 條，避免主執行緒阻塞
             const BATCH_SIZE = 20;
 
             function processBatch(startIdx) {
@@ -5845,9 +5847,8 @@
                     newArrows.forEach(marker => arrowLayerGroup.addLayer(marker));
                 }
 
-                processed = endIdx;
-                if (processed < allPolylines.length) {
-                    requestAnimationFrame(() => processBatch(processed));
+                if (endIdx < allPolylines.length) {
+                    requestAnimationFrame(() => processBatch(endIdx));
                 }
             }
 
@@ -5855,6 +5856,7 @@
                 requestAnimationFrame(() => processBatch(0));
             }
         }
+
         // 🔧 修正版：頁面載入完成後的初始化 - 移除重新載入相關邏輯
         // 🔧 修正版：頁面載入完成後的初始化 - 優先處理分享連結
         document.addEventListener('DOMContentLoaded', function () {
